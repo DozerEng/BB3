@@ -1,0 +1,12 @@
+../Core/Src/rgb.c:18:6:RGB_setRed	1
+../Core/Src/rgb.c:25:6:RGB_setGreen	1
+../Core/Src/rgb.c:32:6:RGB_setBlue	1
+../Core/Src/rgb.c:39:6:RGB_setViolet	1
+../Core/Src/rgb.c:46:6:RGB_setYellow	1
+../Core/Src/rgb.c:53:6:RGB_setTurquoise	1
+../Core/Src/rgb.c:60:6:RGB_setWhite	1
+../Core/Src/rgb.c:67:6:RGB_setOff	1
+../Core/Src/rgb.c:74:6:RGB_setState	9
+../Core/Src/rgb.c:109:6:RGB_cycle	2
+../Core/Src/rgb.c:117:6:RGB_reverseCycle	2
+../Core/Src/rgb.c:131:6:RGB_setUserInput	19

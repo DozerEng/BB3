@@ -1,0 +1,15 @@
+../Core/Src/tmc2209.c:19:11:tmc2209_new	1
+../Core/Src/tmc2209.c:83:10:tmc2209_read	2
+../Core/Src/tmc2209.c:116:6:tmc2209_write	1
+../Core/Src/tmc2209.c:136:6:tmc2209_setGCONFG	1
+../Core/Src/tmc2209.c:152:6:tmc2209_setIHOLD_IRUN	1
+../Core/Src/tmc2209.c:168:6:tmc2209_step	1
+../Core/Src/tmc2209.c:194:6:tmc2209_reset	1
+../Core/Src/tmc2209.c:200:6:tmc2209_off	1
+../Core/Src/tmc2209.c:206:6:tmc2209_on	1
+../Core/Src/tmc2209.c:213:6:tmc2209_setinternalRSense	1
+../Core/Src/tmc2209.c:222:6:tmc2209_setCurrent	1
+../Core/Src/tmc2209.c:228:6:tmc2209_setMode	1
+../Core/Src/tmc2209.c:234:6:tmc2209_setMicroStep	1
+../Core/Src/tmc2209.c:240:6:tmc2209_resetCounter	1
+../Core/Src/tmc2209.c:246:6:tmc2209_calculateCRC	4

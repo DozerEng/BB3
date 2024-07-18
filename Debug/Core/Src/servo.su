@@ -1,0 +1,7 @@
+../Core/Src/servo.c:14:9:Servo_newMG90S	64	static
+../Core/Src/servo.c:35:9:Servo_newMG996R	64	static
+../Core/Src/servo.c:55:6:Servo_start	16	static
+../Core/Src/servo.c:60:6:Servo_stop	16	static
+../Core/Src/servo.c:67:6:Servo_setPosition	32	static
+../Core/Src/servo.c:89:6:Servo_setMax	24	static
+../Core/Src/servo.c:107:6:Servo_setMin	24	static
