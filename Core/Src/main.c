@@ -112,6 +112,7 @@ static void MX_ADC2_Init(void);
   */
 int main(void)
 {
+
   /* USER CODE BEGIN 1 */
 
   /* USER CODE END 1 */
@@ -245,14 +246,15 @@ int main(void)
    * 	- Remove double-slashes to select desired firmware
    * 	- All other objects should be commented out
    */
-  //eezybotarm_t robotArm = eezybotarm_new(&servo6, &servo5, &servo4, &servo3, &rgb1, &rgb2);
-  // bb3_t bb3 = bb3_new(
-  // ledDisplay_t display = ledDisplay_new(
+//  eezybotarm_t robotArm = eezybotarm_new(&servo6, &servo3, &servo4, &servo5, &rgb1, &rgb2);
+//  bb3_t bb3 = bb3_new(
+//  ledDisplay_t display = ledDisplay_new(
 
 
   /*
    * Start of infinite loop!
    */
+  uint32_t increment = 1000;
   while (1)
   {
 
@@ -261,7 +263,7 @@ int main(void)
 	   * - Data in this section is meant to be temporary and is regularly be deleted/modified
 	   * - Un-comment the start and end comment blocks to enable/disable
 	   */
-	  ///* Enable/Disable
+//	  /* Enable/Disable
 	  // Use buttons to test functions
 	  // Check buttons
 	  uint8_t topPB, botPB, midPB;
@@ -280,8 +282,23 @@ int main(void)
 //		  HAL_UART_Transmit(&huart1, msg, 6, 10);
 
 
-		  tmc2209_on(&rightMotor);
+		  // VACTUAL control
+		  if (leftMotor.vactual > (TMC2209_VACTUAL_MAX_P - increment) ) {
+			  leftMotor.vactual = TMC2209_VACTUAL_MAX_P;
+		  } else {
+			  leftMotor.vactual = leftMotor.vactual + increment;
+		  }
+		  tmc2209_set_VACTUAL(&leftMotor);
 
+		  if (rightMotor.vactual > (TMC2209_VACTUAL_MAX_P - increment) ) {
+			  rightMotor.vactual = TMC2209_VACTUAL_MAX_P;
+		  } else {
+			  rightMotor.vactual = rightMotor.vactual + increment;
+		  }
+		  tmc2209_set_VACTUAL(&rightMotor);
+
+		  // STEP / DIR control
+//		  tmc2209_on(&rightMotor);
 
 
 
@@ -302,7 +319,24 @@ int main(void)
 //		  HAL_UART_Transmit(&huart1, msg, 6, 10);
 
 
-		  tmc2209_on(&leftMotor);
+		  // VACTUAL control
+		  if (leftMotor.vactual < increment ) {
+			  leftMotor.vactual = 0x000000;
+		  } else {
+			  leftMotor.vactual = leftMotor.vactual - increment;
+		  }
+		  tmc2209_set_VACTUAL(&leftMotor);
+
+		  if (rightMotor.vactual < increment ) {
+			  rightMotor.vactual = 0x000000;
+		  } else {
+			  rightMotor.vactual = rightMotor.vactual - increment;
+		  }
+		  tmc2209_set_VACTUAL(&rightMotor);
+
+
+		  // STEP / DIR control
+//		  tmc2209_on(&leftMotor);
 
 
 
@@ -315,14 +349,23 @@ int main(void)
 //		  status = HAL_UART_Transmit(&huart2, msg, 18, 10);
 //		  HAL_UART_Transmit(&huart1, msg, 18, 10);
 
-		  tmc2209_off(&leftMotor);
-		  tmc2209_off(&rightMotor);
+
+
+		  // VACTUAL control
+		  leftMotor.vactual = 0x00000000;
+		  rightMotor.vactual = 0x00000000;
+		  tmc2209_set_VACTUAL(&leftMotor);
+		  tmc2209_set_VACTUAL(&rightMotor);
+
+		  // STEP / DIR control
+//		  tmc2209_off(&leftMotor);
+//		  tmc2209_off(&rightMotor);
 
 
 
 		  while(HAL_GPIO_ReadPin(BOT_PB_GPIO_Port, BOT_PB_Pin) == PB_PRESSED);
 	  }
-	  //*/ // EO Testing Arena
+//	  */ EO Testing Arena
 
 
 
@@ -394,7 +437,7 @@ int main(void)
 	  }
 	  // Toggle the other system LED every iteration
 	  HAL_GPIO_TogglePin(STATUS_LED1_GPIO_Port, STATUS_LED1_Pin);
-	  HAL_Delay(WAIT_ms);
+//	  HAL_Delay(WAIT_ms); // Delay if needed
 
 
 
@@ -535,8 +578,8 @@ static void MX_FDCAN1_Init(void)
   hfdcan1.Init.ProtocolException = DISABLE;
   hfdcan1.Init.NominalPrescaler = 16;
   hfdcan1.Init.NominalSyncJumpWidth = 1;
-  hfdcan1.Init.NominalTimeSeg1 = 2;
-  hfdcan1.Init.NominalTimeSeg2 = 2;
+  hfdcan1.Init.NominalTimeSeg1 = 1;
+  hfdcan1.Init.NominalTimeSeg2 = 1;
   hfdcan1.Init.DataPrescaler = 1;
   hfdcan1.Init.DataSyncJumpWidth = 1;
   hfdcan1.Init.DataTimeSeg1 = 1;
@@ -578,8 +621,8 @@ static void MX_FDCAN2_Init(void)
   hfdcan2.Init.ProtocolException = DISABLE;
   hfdcan2.Init.NominalPrescaler = 16;
   hfdcan2.Init.NominalSyncJumpWidth = 1;
-  hfdcan2.Init.NominalTimeSeg1 = 2;
-  hfdcan2.Init.NominalTimeSeg2 = 2;
+  hfdcan2.Init.NominalTimeSeg1 = 1;
+  hfdcan2.Init.NominalTimeSeg2 = 1;
   hfdcan2.Init.DataPrescaler = 1;
   hfdcan2.Init.DataSyncJumpWidth = 1;
   hfdcan2.Init.DataTimeSeg1 = 1;
@@ -616,7 +659,7 @@ static void MX_SPI2_Init(void)
   hspi2.Instance = SPI2;
   hspi2.Init.Mode = SPI_MODE_MASTER;
   hspi2.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi2.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi2.Init.DataSize = SPI_DATASIZE_4BIT;
   hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi2.Init.NSS = SPI_NSS_HARD_OUTPUT;
@@ -733,9 +776,9 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 8499;
+  htim2.Init.Prescaler = 339;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 1999;
+  htim2.Init.Period = 9999;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_PWM_Init(&htim2) != HAL_OK)
@@ -749,14 +792,13 @@ static void MX_TIM2_Init(void)
     Error_Handler();
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 999;
+  sConfigOC.Pulse = 4999;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
   {
     Error_Handler();
   }
-  sConfigOC.Pulse = 9999;
   if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
   {
     Error_Handler();
@@ -956,8 +998,8 @@ static void MX_USART2_UART_Init(void)
 static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
-/* USER CODE BEGIN MX_GPIO_Init_1 */
-/* USER CODE END MX_GPIO_Init_1 */
+  /* USER CODE BEGIN MX_GPIO_Init_1 */
+  /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
@@ -1015,8 +1057,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-/* USER CODE BEGIN MX_GPIO_Init_2 */
-/* USER CODE END MX_GPIO_Init_2 */
+  /* USER CODE BEGIN MX_GPIO_Init_2 */
+  /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */

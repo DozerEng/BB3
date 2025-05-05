@@ -14,7 +14,7 @@
 
 eezybotarm_t eezybotarm_new(servo_t* tool, servo_t* elbow, servo_t* shoulder, servo_t* base, rgb_t* eventRGB, rgb_t* modeRGB) {
 
-	// Pause for dramatic effect... and to wait for USB to be ready again
+	// Pause for dramatic effect... and to wait for USB to be ready, again
 	HAL_Delay(EEZYBOTARM_LOADING_DELAY);
 	// Create buffer and send initialization message
 	char* initializingMessage1 = "\n\rInitializing eezybotarm MK2   ";

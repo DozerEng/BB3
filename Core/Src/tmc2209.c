@@ -24,7 +24,7 @@ tmc2209_t tmc2209_new(TIM_HandleTypeDef *stepTimer, uint32_t stepTimerChannel, u
 			.dirPort = dirPort,
 			.uart = uart,
 			.uartAddr = uartAddr,
-			// Blank registers
+			// Start with blank registers
 			.gconf = 0x00000000,
 			.gstat = 0x00000000,
 			.ifcnt = 0x00000000,
@@ -34,45 +34,85 @@ tmc2209_t tmc2209_new(TIM_HandleTypeDef *stepTimer, uint32_t stepTimerChannel, u
 			.ioin = 0x00000000,
 			.factory_conf = 0x00000000,
 			.ihold_irun = 0x00000000,
-			.tpower_down = 0x00000000,
+			.tpowerdown = 0x00000000,
 			.tstep = 0x00000000
 	};
 	/*
-	 * Set initial pin states
+	 * Set initial register states
 	 */
-	// Turn off motors
+
 	//HAL_GPIO_WritePin(stepPort, stepPin, 0);
 	HAL_GPIO_WritePin(dirPort, dirPin, 0);
-
-//	tmc2209_off(&newMotor);
 
 
 	/*
 	 * Configure driver using UART
 	 */
+	// General registers
+	newMotor.gconf =	TMC2209_internal_rsense |
+						TMC2209_I_scale_analog |
+//						TMC2209_shaft |
+ 						TMC2209_pdn_disable | // Use UART
+						TMC2209_index_step | // INDEX output shows pulse each step
+//						TMC2209_en_SpreadCycle | // 0: StealthChop 1: SpreadCycle
+						TMC2209_mstep_reg_select;// Select micro-steps with UART
+
+	tmc2209_set_GCONF(&newMotor);
+
+	// CHOPCONF
+	newMotor.chopconf = 	TMC2209_CHOPCONF_MRES_16 |	// Micro-step resolution
+							TMC2209_CHOPCONF_intpol | 	// Interpolation to 256 micro-steps
+//							TMC2209_CHOPCONF_dedge	|	// Step on rising and falling edges
+							TMC2209_CHOPCONF_TBL_24 |	// blank_time
+							TMC2209_CHOPCONF_vsense |
+							TMC2209_CHOPCONF_HEND_n1 |	// Hysteresis end
+							TMC2209_CHOPCONF_HSTRT_2 |	// Hysteresis_start
+							TMC2209_CHOPCONF_TOFF_10;	// Off time
+
+	tmc2209_set_CHOPCONF(&newMotor);
 
 
+	//	st.rms_current(mA, hold_multiplier);
 
-	/*
-	 * Set general configuration register
-	 */
-	uint32_t newGCONF = TMC2209_internal_rsense | TMC2209_pdn_disable | TMC2209_mstep_reg_select;//multistep_filt
-	tmc2209_setGCONFG(&newMotor, newGCONF);
-	/*
-	 *  Set currents
-	 *  Min: 0
-	 *  Max: 31 / 0b00011111
-	 */
-	uint32_t newHoldCurrent = 0; // Free wheel/passive breaking
-	uint32_t newRunCurrent = 10;
-	uint32_t newHoldDelay = 0; // Auto off
-	uint32_t newIHOLD_IRUN = newHoldCurrent | (newRunCurrent << 8) | (newHoldDelay << 16);
-	tmc2209_setIHOLD_IRUN(&newMotor, newIHOLD_IRUN);
+	// Currents
+	uint32_t newHoldCurrent = 10; // 0: Free wheel/passive breaking
+	uint32_t newRunCurrent = 10; // 0=1/32 … 31=32/32
+	uint32_t newHoldDelay = 5; // 0: instant power down
+	newMotor.ihold_irun =	newHoldCurrent |
+							(newRunCurrent << 8) |
+							(newHoldDelay << 16);
+	tmc2209_set_IHOLD_IRUN(&newMotor);
+
+	// TPOWERDOWN
+	newMotor.tpowerdown = 128;	// ~2s until driver lowers to hold current
+	tmc2209_set_TPOWERDOWN(&newMotor);
+
+	// Values mostly taken from the Marlin default
+	newMotor.pwmconf = 	(((uint32_t) 12 << TMC2209_PWMCONF_PWM_LIM_shift) & TMC2209_PWMCONF_PWM_LIM) |
+						(((uint32_t) 8 << TMC2209_PWMCONF_PWM_REG_shift) & TMC2209_PWMCONF_PWM_REG) |
+						TMC2209_PWMCONF_pwm_autograd |
+						TMC2209_PWMCONF_pwm_autoscale |
+						TMC2209_PWMCONF_freewheel_normal |
+						TMC2209_PWMCONF_pwm_freq_2_1024 |
+						(((uint32_t) 14 << TMC2209_PWMCONF_PWM_GRAD_shift) & TMC2209_PWMCONF_PWM_GRAD) |
+						(((uint32_t) 36 << TMC2209_PWMCONF_PWM_OFS_shift) & TMC2209_PWMCONF_PWM_OFS)  ;
+	tmc2209_set_PWMCONF(&newMotor);
+
+	// VACTUAL is for UART constantly velocity driving, turn off -> 0x00000000
+	// DO NOT RUN THESE LINES IF YOU WANT TO USE STEP/DIR
+//	newMotor.vactual = 0x00000000 & TMC2209_VACTUAL;
+//	tmc2209_set_VACTUAL(&newMotor);
+
+	newMotor.tpwmthrs = 0x00000000;
+	tmc2209_set_TPWMTHRS(&newMotor);
 
 
-	// Set microstep value
-	// See MRES bits in CHOPCONF register - Chopper configuration
+	// Reset statistics
+	tmc2209_reset_GSTAT(&newMotor);
 
+
+	HAL_Delay(500);
+	tmc2209_on(&newMotor);
 
 	return newMotor;
 }
@@ -81,6 +121,10 @@ tmc2209_t tmc2209_new(TIM_HandleTypeDef *stepTimer, uint32_t stepTimerChannel, u
  *
  */
 uint32_t tmc2209_read(tmc2209_t *tmc, tmc2209_read_request_t readDatagram) {
+
+	// Disable until reading can be implemented, currently the Tx can't release the pullup, making reading impossible
+	return 1;
+
 	/**
 	 * Request data
 	 */
@@ -110,6 +154,8 @@ uint32_t tmc2209_read(tmc2209_t *tmc, tmc2209_read_request_t readDatagram) {
 	uint32_t dataBuffer[] = { resMsg[3] << 24, resMsg[4] << 16, resMsg[5] << 8, resMsg[6] };
 	return dataBuffer[0] | dataBuffer[1] | dataBuffer[2] | dataBuffer[3];
 }
+
+
 /**
  *
  */
@@ -129,19 +175,117 @@ void tmc2209_write(tmc2209_t *tmc, tmc2209_write_t writeDatagram) {
 
 	HAL_UART_Transmit(tmc->uart, msg, TMC2209_WRITE_DATAGRAM_LENGTH, TMC2209_UART_TIMEOUT);
 }
+
 /**
  *	@function tmc2209_setGCONF
  *	@brief programs CGONF register
  */
-void tmc2209_setGCONFG(tmc2209_t *tmc, uint32_t data) {
-	tmc->gconf = data;
+void tmc2209_set_GCONF(tmc2209_t *tmc) {
 	tmc2209_write_t msg = {
 		.slaveAddress = tmc->uartAddr,
-		.registerAddress = TMC2209_GCONF,
-		.data = data
+		.registerAddress = TMC2209_GCONF_ADDR,
+		.data = tmc->gconf
   	};
 	tmc2209_write(tmc, msg);
+}
 
+/**
+ *	@function tmc2209_getGCONF
+ *	@brief reads CGONF register
+ */
+void tmc2209_get_GCONF(tmc2209_t *tmc){
+
+}
+
+/**
+ *	@function
+ *	@brief
+ */
+void tmc2209_get_GSTAT(tmc2209_t *tmc){
+
+}
+
+/**
+ *	@function tmc2209_reset GSTAT
+ *	@brief Reset the status registers
+ */
+void tmc2209_reset_GSTAT(tmc2209_t *tmc){
+	tmc2209_write_t msg = {
+			.slaveAddress = tmc->uartAddr,
+			.registerAddress = TMC2209_GSTAT_ADDR,
+			.data = TMC2209_GSTAT_RESET
+	  	};
+		tmc2209_write(tmc, msg);
+}
+
+/**
+ *	@function tmc2209_
+ *	@brief
+ */
+void tmc2209_get_IFCNT(tmc2209_t *tmc){
+
+}
+
+/**
+ *	@function tmc2209_
+ *	@brief
+ */
+void tmc2209_set_SLAVECONF(tmc2209_t *tmc){
+	tmc2209_write_t msg = {
+		.slaveAddress = tmc->uartAddr,
+		.registerAddress = TMC2209_SLAVECONF_ADDR,
+		.data = tmc->slaveconf
+  	};
+	tmc2209_write(tmc, msg);
+}
+
+/**
+ *	@function tmc2209_
+ *	@brief
+ */
+void tmc2209_set_OTP_PROG(tmc2209_t *tmc){
+	tmc2209_write_t msg = {
+		.slaveAddress = tmc->uartAddr,
+		.registerAddress = TMC2209_OTP_PROG_ADDR,
+		.data = tmc->otp_prog
+  	};
+	tmc2209_write(tmc, msg);
+}
+
+/**
+ *	@function tmc2209_
+ *	@brief
+ */
+void tmc2209_get_OTP_READ(tmc2209_t *tmc){
+
+}
+
+/**
+ *	@function tmc2209_
+ *	@brief
+ */
+void tmc2209_get_IOIN(tmc2209_t *tmc){
+
+}
+
+/**
+ *	@function tmc2209_
+ *	@brief
+ */
+void tmc2209_set_FACTORY_CONF(tmc2209_t *tmc){
+	tmc2209_write_t msg = {
+		.slaveAddress = tmc->uartAddr,
+		.registerAddress = TMC2209_FACTORY_CONF_ADDR,
+		.data = tmc->factory_conf
+  	};
+	tmc2209_write(tmc, msg);
+}
+
+/**
+ *	@function tmc2209_
+ *	@brief
+ */
+void tmc2209_get_FACTORY_CONF(tmc2209_t *tmc){
 
 }
 
@@ -149,15 +293,196 @@ void tmc2209_setGCONFG(tmc2209_t *tmc, uint32_t data) {
  *	@function tmc2209_setIHOLD_IRUN
  *	@brief Programs holding current, run current, and hold delay time
  */
-void tmc2209_setIHOLD_IRUN(tmc2209_t *tmc, uint32_t data) {
-	tmc->ihold_irun = data;
+void tmc2209_set_IHOLD_IRUN(tmc2209_t *tmc) {
 	tmc2209_write_t msg = {
 		.slaveAddress = tmc->uartAddr,
-		.registerAddress = TMC2209_IHOLD_IRUN,
-		.data = data
+		.registerAddress = TMC2209_IHOLD_IRUN_ADDR,
+		.data = tmc->ihold_irun
   	};
 	tmc2209_write(tmc, msg);
 }
+
+/**
+ *	@function tmc2209_
+ *	@brief
+ */
+void tmc2209_set_TPOWERDOWN(tmc2209_t *tmc){
+	tmc2209_write_t msg = {
+		.slaveAddress = tmc->uartAddr,
+		.registerAddress = TMC2209_TPOWERDOWN_ADDR,
+		.data = tmc->tpowerdown
+  	};
+	tmc2209_write(tmc, msg);
+}
+
+/**
+ *	@function tmc2209_
+ *	@brief
+ */
+void tmc2209_get_TSTEP(tmc2209_t *tmc){
+
+}
+
+/**
+ *	@function tmc2209_
+ *	@brief
+ */
+void tmc2209_set_TPWMTHRS(tmc2209_t *tmc){
+	tmc2209_write_t msg = {
+		.slaveAddress = tmc->uartAddr,
+		.registerAddress = TMC2209_TPWMTHRS_ADDR,
+		.data = tmc->tpwmthrs
+  	};
+	tmc2209_write(tmc, msg);
+}
+
+/**
+ *	@function tmc2209_
+ *	@brief
+ */
+void tmc2209_set_VACTUAL(tmc2209_t *tmc){
+	// Max sure speed isn't above the maximum allowable
+	if(tmc->vactual >= TMC2209_VACTUAL_MAX_P) {
+		tmc->vactual = TMC2209_VACTUAL_MAX_P;
+	}
+	tmc2209_write_t msg = {
+		.slaveAddress = tmc->uartAddr,
+		.registerAddress = TMC2209_VACTUAL_ADDR,
+		.data = tmc->vactual
+  	};
+	tmc2209_write(tmc, msg);
+}
+
+/**
+ *	@function tmc2209_
+ *	@brief
+ */
+void tmc2209_set_TCOOLTHRS(tmc2209_t *tmc){
+	tmc2209_write_t msg = {
+		.slaveAddress = tmc->uartAddr,
+		.registerAddress = TMC2209_TCOOLTHRS_ADDR,
+		.data = tmc->tcoolthrs
+  	};
+	tmc2209_write(tmc, msg);
+}
+
+/**
+ *	@function tmc2209_
+ *	@brief
+ */
+void tmc2209_set_SGTHRS(tmc2209_t *tmc){
+	tmc2209_write_t msg = {
+		.slaveAddress = tmc->uartAddr,
+		.registerAddress = TMC2209_SGTHRS_ADDR,
+		.data = tmc->sgthrs
+  	};
+	tmc2209_write(tmc, msg);
+}
+
+/**
+ *	@function tmc2209_
+ *	@brief
+ */
+void tmc2209_get_SG_RESULT(tmc2209_t *tmc){
+
+}
+
+/**
+ *	@function tmc2209_
+ *	@brief
+ */
+void tmc2209_set_COOLCONF(tmc2209_t *tmc){
+	tmc2209_write_t msg = {
+		.slaveAddress = tmc->uartAddr,
+		.registerAddress = TMC2209_COOLCONF_ADDR,
+		.data = tmc->coolconf
+  	};
+	tmc2209_write(tmc, msg);
+}
+
+/**
+ *	@function tmc2209_
+ *	@brief
+ */
+void tmc2209_get_MSCNT(tmc2209_t *tmc){
+
+}
+
+/**
+ *	@function tmc2209_
+ *	@brief
+ */
+void tmc2209_get_MSCURACT(tmc2209_t *tmc){
+
+}
+
+/**
+ *	@function tmc2209_
+ *	@brief
+ */
+void tmc2209_set_CHOPCONF(tmc2209_t *tmc){
+	tmc2209_write_t msg = {
+		.slaveAddress = tmc->uartAddr,
+		.registerAddress = TMC2209_CHOPCONF_ADDR,
+		.data = tmc->chopconf
+  	};
+	tmc2209_write(tmc, msg);
+}
+
+/**
+ *	@function tmc2209_
+ *	@brief
+ */
+void tmc2209_get_CHOPCONF(tmc2209_t *tmc){
+
+}
+
+/**
+ *	@function tmc2209_
+ *	@brief
+ */
+void tmc2209_get_DRV_STATUS(tmc2209_t *tmc){
+
+}
+
+/**
+ *	@function tmc2209_
+ *	@brief
+ */
+void tmc2209_set_PWMCONF(tmc2209_t *tmc){
+	tmc2209_write_t msg = {
+		.slaveAddress = tmc->uartAddr,
+		.registerAddress = TMC2209_PWMCONF_ADDR,
+		.data = tmc->pwmconf
+  	};
+	tmc2209_write(tmc, msg);
+}
+
+/**
+ *	@function tmc2209_
+ *	@brief
+ */
+void tmc2209_get_PWMCONF(tmc2209_t *tmc){
+
+}
+
+/**
+ *	@function tmc2209_
+ *	@brief
+ */
+void tmc2209_get_PWM_SCALE(tmc2209_t *tmc){
+
+}
+
+/**
+ *	@function tmc2209_
+ *	@brief
+ */
+void tmc2209_get_PWM_AUTO(tmc2209_t *tmc){
+
+}
+
+
 
 
 /**
@@ -173,33 +498,20 @@ void tmc2209_step(tmc2209_t *tmc) {
 }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /**
  *
  */
 void tmc2209_reset(tmc2209_t *tmc) {
 
 }
+
 /**
  *
  */
 void tmc2209_off(tmc2209_t *tmc) {
 	HAL_TIM_PWM_Stop(tmc->stepTimer, tmc->stepTimerChannel);
 }
+
 /**
  *
  */
@@ -207,43 +519,14 @@ void tmc2209_on(tmc2209_t *tmc) {
 	HAL_TIM_PWM_Start(tmc->stepTimer, tmc->stepTimerChannel);
 }
 
-/**
- *
- */
-void tmc2209_setinternalRSense(tmc2209_t *tmc, uint8_t data) {
-	// Validate valid data
 
-	// Transmit message
 
-}
-/**
- *
- */
-void tmc2209_setCurrent(tmc2209_t *tmc, double mACurrent) {
 
-}
-/**
- *
- */
-void tmc2209_setMode(tmc2209_t *tmc, uint8_t mode){
-
-}
-/**
- *
- */
-void tmc2209_setMicroStep(tmc2209_t *tmc, uint8_t step) {
-
-}
-/**
- *
- */
-void tmc2209_resetCounter(tmc2209_t *tmc) {
-
-}
 /**
  *
  */
 void tmc2209_calculateCRC(uint8_t* datagram, uint8_t datagramLength){
+	// Taken from TMC2209 datasheet
 	int i,j;
 	uint8_t* crc = datagram + (datagramLength-1); // CRC located in last byte of message
 	uint8_t currentByte;
