@@ -45,8 +45,18 @@
 #define TMC2209_ADDR_2 		0b00000010
 #define TMC2209_ADDR_3 		0b00000011
 
-#define TMC2209_RW_READ 	0b00000000
+#define TMC2209_RW_READ 	0b00000000		// UART message read/write frame bit indicators
 #define TMC2209_RW_WRITE    0b10000000
+
+
+/**
+ * Functional Register Constants
+ */
+#define TMC2209_LOW		0
+#define	TMC2209_HIGH	1
+
+#define TMC2209_STANDARD_MOTOR_DIR		0
+#define TMC2209_INVERSE_MOTOR_DIR 		1
 
 
 /**
@@ -174,7 +184,7 @@
 #define TMC2209_VACTUAL_ADDR		0x22	// 0: Respond to step input, else use VACTUAL for speed control
 #define TMC2209_VACTUAL				0b00000001111111111111111111111111	// +/- (2^23)-1 [usteps/t]
 //#define TMC2209_VACTUAL				0x01FFFFFF
-#define TMC2209_VACTUAL_MAX_P		33554431 // in decimal
+#define TMC2209_VACTUAL_MAX_P		16777215 // in decimal, since VACTUAL is signed
 #define TMC2209_VACTUAL_ZERO		0
 #define TMC2209_VACTUAL_MAX_N		0
 
@@ -297,7 +307,6 @@
 #define TMC2209_CHOPCONF_HSTRT_7		0b00000000000000000000000001100000	// 7
 #define TMC2209_CHOPCONF_HSTRT_8		0b00000000000000000000000001110000	// 8
 
-
 #define TMC2209_CHOPCONF_TOFF			0b00000000000000000000000000001111	// Off time Nclk = 24 + 32 * TOFF
 #define TMC2209_CHOPCONF_TOFF_0			0b00000000000000000000000000000000	// Driver disable, all bridges off
 #define TMC2209_CHOPCONF_TOFF_1			0b00000000000000000000000000000001	// 1 - use only with TBL >= 2
@@ -368,15 +377,9 @@
 #define TMC2209_PWMCONF_pwm_freq_2_512		0b00000000000000100000000000000000
 #define TMC2209_PWMCONF_pwm_freq_2_410		0b00000000000000110000000000000000
 
-#define TMC2209_PWMCONF_PWM_GRAD_shift	8 // Required bit shifts
+#define TMC2209_PWMCONF_PWM_GRAD_shift		8 // Required bit shifts
 
-#define TMC2209_PWMCONF_PWM_OFS_shift	0 // Required bit shifts
-
-
-
-
-
-
+#define TMC2209_PWMCONF_PWM_OFS_shift		0 // Required bit shifts
 
 // PWM_SCALE
 #define TMC2209_PWM_SCALE_ADDR				0x71
@@ -390,23 +393,39 @@
 #define TMC2209_PWM_AUTO_PWM_OFS_AUTO		0b00000000000000000000000011111111
 #define TMC2209_PWM_AUTO_PWM_GRAD_AUTO		0b00000000111111110000000000000001
 
-
-
-
-
-
-
 /**
- * Data types and enums
+ * Data types
  */
 
 
+typedef enum {
+	TMC2209_FULL_GPIO_CONTROL,			// STEP, DIR, MS1, MS2, etc...
+	TMC2209_VELOCITY_CONTROL,			// Velocity programming via UART
+	TMC2209_UART_STEP_DIR_CONTROL,		// UART + STEP, DIR
+	TMC2209_FULL_UART_STEPPING_CONTROL 	// Stepping via UART commands
+} tmc2209_mode_t;
 
+typedef enum {
+	TMC2209_FORWARD,
+	TMC2209_BACKWARD
+} tmc2209_dir_t;
 
-
-
+// tmc2209_t
 typedef struct {
-	// HW Interface
+
+	/*
+	 * Functional variables
+	 */
+	tmc2209_mode_t mode;
+	tmc2209_dir_t dir;
+	int32_t acceleration;		// in steps / ms
+	int32_t acceleration_max;	// in steps / ms
+	int32_t vactual_MAX;
+	int32_t vactual_increment_gain;
+
+	/*
+	 * Hardware Interface
+	 */
 //	uint16_t stepPin;		// THESE NEEDC TO BE TIMER NOT GPIO
 //	GPIO_TypeDef *stepPort;
 	TIM_HandleTypeDef *stepTimer; /** Pointer to timer channel */
@@ -419,7 +438,7 @@ typedef struct {
 	uint8_t uartAddr; // 0x00 to 0x03, set with hardware jumpers
 
 	/*
-	 * 32-bit register data
+	 * 32-bit registers
 	 */
 	// General registers
 	uint32_t gconf;
@@ -435,7 +454,7 @@ typedef struct {
 	uint32_t tpowerdown;
 	uint32_t tstep;
 	uint32_t tpwmthrs;
-	uint32_t vactual;
+	int32_t vactual;
 	// CoolStep and StallGuard control registers
 	uint32_t tcoolthrs;
 	uint32_t sgthrs;
@@ -486,6 +505,8 @@ typedef struct {
 
 
 tmc2209_t tmc2209_new(
+		uint8_t mode,
+		uint8_t shaft,
 		TIM_HandleTypeDef *stepTimer,
 		uint32_t stepTimerChannel,
 		uint16_t dirPin,
@@ -560,21 +581,33 @@ void tmc2209_get_PWM_SCALE(tmc2209_t *tmc);
 
 void tmc2209_get_PWM_AUTO(tmc2209_t *tmc);
 
-// Calculate CRC value
-void tmc2209_calculateCRC(uint8_t* datagram, uint8_t datagramLength);
+// Calculate CRC value and set it as the last element in the array
+void tmc2209_calculate_CRC(uint8_t* datagram, uint8_t datagramLength);
 
-/**
- * Speed and control
+
+/*
+ * General Functions
  */
 
-void tmc2209_step(tmc2209_t *tmc);
+void tmc2209_reset(tmc2209_t *tmc);
+
+void tmc2209_set_mode(tmc2209_t *tmc);
+void tmc2209_set_dir(tmc2209_t *tmc);
 
 // STEP DIR control
+void tmc2209_step_on(tmc2209_t *tmc);
+void tmc2209_step_off(tmc2209_t *tmc);
+void tmc2209_step(tmc2209_t *tmc);
+void tmc2209_step_count(tmc2209_t *tmc, uint16_t count);
+
+// UART
+void tmc2209_set_speed(tmc2209_t *tmc, uint32_t speed);
+void tmc2209_set_acceleration(tmc2209_t *tmc, uint32_t acceleartion);
 void tmc2209_on(tmc2209_t *tmc);
 void tmc2209_off(tmc2209_t *tmc);
 
-// UART control
-//void tmc2209_set_speed(tmc2209_t *tmc, );
+void tmc2209_inverse_motor_direction(tmc2209_t *tmc);
+
 
 
 

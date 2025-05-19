@@ -16,15 +16,30 @@
  *
  */
 
-tmc2209_t tmc2209_new(TIM_HandleTypeDef *stepTimer, uint32_t stepTimerChannel, uint16_t dirPin, GPIO_TypeDef *dirPort, UART_HandleTypeDef *uart, uint8_t uartAddr) {
+tmc2209_t tmc2209_new(
+		// Functional setup
+		uint8_t mode,
+		uint8_t shaft,
+		// Hardware setup
+		TIM_HandleTypeDef *stepTimer,
+		uint32_t stepTimerChannel,
+		uint16_t dirPin,
+		GPIO_TypeDef *dirPort,
+		UART_HandleTypeDef *uart,
+		uint8_t uartAddr
+		) {
 	tmc2209_t newMotor = {
+			// Functional variables
+			.mode = mode,
+			.dir = TMC2209_FORWARD,
+			// Hardware interface
 			.stepTimer = stepTimer,
 			.stepTimerChannel = stepTimerChannel,
 			.dirPin = dirPin,
 			.dirPort = dirPort,
 			.uart = uart,
 			.uartAddr = uartAddr,
-			// Start with blank registers
+			// Blank registers
 			.gconf = 0x00000000,
 			.gstat = 0x00000000,
 			.ifcnt = 0x00000000,
@@ -44,27 +59,29 @@ tmc2209_t tmc2209_new(TIM_HandleTypeDef *stepTimer, uint32_t stepTimerChannel, u
 	//HAL_GPIO_WritePin(stepPort, stepPin, 0);
 	HAL_GPIO_WritePin(dirPort, dirPin, 0);
 
-
 	/*
 	 * Configure driver using UART
 	 */
 	// General registers
 	newMotor.gconf =	TMC2209_internal_rsense |
-						TMC2209_I_scale_analog |
-//						TMC2209_shaft |
- 						TMC2209_pdn_disable | // Use UART
-						TMC2209_index_step | // INDEX output shows pulse each step
-//						TMC2209_en_SpreadCycle | // 0: StealthChop 1: SpreadCycle
-						TMC2209_mstep_reg_select;// Select micro-steps with UART
+						TMC2209_I_scale_analog | 	// 0: Internal reference 1: From VREF
+//						TMC2209_multistep_filt |		// Filtering > 750Hz
+//						TMC2209_en_SpreadCycle | 	// 0: StealthChop 1: SpreadCycle
+						TMC2209_index_step; 		// INDEX output shows pulse each step
+
+	// Turn on shaft bit to invert motor direction
+	if(shaft == TMC2209_INVERSE_MOTOR_DIR) {
+		newMotor.gconf |= TMC2209_shaft;
+	}
 
 	tmc2209_set_GCONF(&newMotor);
 
 	// CHOPCONF
-	newMotor.chopconf = 	TMC2209_CHOPCONF_MRES_16 |	// Micro-step resolution
+	newMotor.chopconf = 	TMC2209_CHOPCONF_MRES_32 |	// Micro-step resolution
 							TMC2209_CHOPCONF_intpol | 	// Interpolation to 256 micro-steps
 //							TMC2209_CHOPCONF_dedge	|	// Step on rising and falling edges
 							TMC2209_CHOPCONF_TBL_24 |	// blank_time
-							TMC2209_CHOPCONF_vsense |
+							TMC2209_CHOPCONF_vsense |	// 0: lowsense resistor voltage 1: high sense resistor voltage
 							TMC2209_CHOPCONF_HEND_n1 |	// Hysteresis end
 							TMC2209_CHOPCONF_HSTRT_2 |	// Hysteresis_start
 							TMC2209_CHOPCONF_TOFF_10;	// Off time
@@ -75,9 +92,9 @@ tmc2209_t tmc2209_new(TIM_HandleTypeDef *stepTimer, uint32_t stepTimerChannel, u
 	//	st.rms_current(mA, hold_multiplier);
 
 	// Currents
-	uint32_t newHoldCurrent = 10; // 0: Free wheel/passive breaking
-	uint32_t newRunCurrent = 10; // 0=1/32 … 31=32/32
-	uint32_t newHoldDelay = 5; // 0: instant power down
+	uint32_t newHoldCurrent = 0; // 0: Free wheel/passive breaking
+	uint32_t newRunCurrent = 16; // 0=1/32 … 31=32/32 ratio of max current
+	uint32_t newHoldDelay = 0; // 0: instant power down
 	newMotor.ihold_irun =	newHoldCurrent |
 							(newRunCurrent << 8) |
 							(newHoldDelay << 16);
@@ -92,27 +109,30 @@ tmc2209_t tmc2209_new(TIM_HandleTypeDef *stepTimer, uint32_t stepTimerChannel, u
 						(((uint32_t) 8 << TMC2209_PWMCONF_PWM_REG_shift) & TMC2209_PWMCONF_PWM_REG) |
 						TMC2209_PWMCONF_pwm_autograd |
 						TMC2209_PWMCONF_pwm_autoscale |
-						TMC2209_PWMCONF_freewheel_normal |
+						TMC2209_PWMCONF_freewheel_freewheeling |
 						TMC2209_PWMCONF_pwm_freq_2_1024 |
 						(((uint32_t) 14 << TMC2209_PWMCONF_PWM_GRAD_shift) & TMC2209_PWMCONF_PWM_GRAD) |
 						(((uint32_t) 36 << TMC2209_PWMCONF_PWM_OFS_shift) & TMC2209_PWMCONF_PWM_OFS)  ;
 	tmc2209_set_PWMCONF(&newMotor);
 
-	// VACTUAL is for UART constantly velocity driving, turn off -> 0x00000000
-	// DO NOT RUN THESE LINES IF YOU WANT TO USE STEP/DIR
-//	newMotor.vactual = 0x00000000 & TMC2209_VACTUAL;
-//	tmc2209_set_VACTUAL(&newMotor);
 
 	newMotor.tpwmthrs = 0x00000000;
 	tmc2209_set_TPWMTHRS(&newMotor);
 
+	tmc2209_set_mode(&newMotor);
 
 	// Reset statistics
 	tmc2209_reset_GSTAT(&newMotor);
 
 
-	HAL_Delay(500);
-	tmc2209_on(&newMotor);
+	/*
+	 * Set other default values
+	 */
+
+
+
+//	HAL_Delay(100);
+//	tmc2209_on(&newMotor);
 
 	return newMotor;
 }
@@ -123,7 +143,7 @@ tmc2209_t tmc2209_new(TIM_HandleTypeDef *stepTimer, uint32_t stepTimerChannel, u
 uint32_t tmc2209_read(tmc2209_t *tmc, tmc2209_read_request_t readDatagram) {
 
 	// Disable until reading can be implemented, currently the Tx can't release the pullup, making reading impossible
-	return 1;
+	return 0;
 
 	/**
 	 * Request data
@@ -171,7 +191,7 @@ void tmc2209_write(tmc2209_t *tmc, tmc2209_write_t writeDatagram) {
 	msg[5] = (uint8_t)((writeDatagram.data >> 8) & 0x000000ff);
 	msg[6] = (uint8_t)(writeDatagram.data & 0x000000ff);
 	msg[7] = 0;
-	tmc2209_calculateCRC(msg, TMC2209_WRITE_DATAGRAM_LENGTH);
+	tmc2209_calculate_CRC(msg, TMC2209_WRITE_DATAGRAM_LENGTH);
 
 	HAL_UART_Transmit(tmc->uart, msg, TMC2209_WRITE_DATAGRAM_LENGTH, TMC2209_UART_TIMEOUT);
 }
@@ -348,7 +368,7 @@ void tmc2209_set_VACTUAL(tmc2209_t *tmc){
 	tmc2209_write_t msg = {
 		.slaveAddress = tmc->uartAddr,
 		.registerAddress = TMC2209_VACTUAL_ADDR,
-		.data = tmc->vactual
+		.data = (tmc->vactual & TMC2209_VACTUAL)
   	};
 	tmc2209_write(tmc, msg);
 }
@@ -483,49 +503,10 @@ void tmc2209_get_PWM_AUTO(tmc2209_t *tmc){
 }
 
 
-
-
 /**
- * @function tmc2209_step
- * @brief
+ *	Calculate CRC
  */
-
-void tmc2209_step(tmc2209_t *tmc) {
-//	HAL_GPIO_WritePin(tmc->stepPort, tmc->stepPin, 1);
-//	HAL_Delay(50);
-//	HAL_GPIO_WritePin(tmc->stepPort, tmc->stepPin, 0);
-//	HAL_Delay(50);
-}
-
-
-/**
- *
- */
-void tmc2209_reset(tmc2209_t *tmc) {
-
-}
-
-/**
- *
- */
-void tmc2209_off(tmc2209_t *tmc) {
-	HAL_TIM_PWM_Stop(tmc->stepTimer, tmc->stepTimerChannel);
-}
-
-/**
- *
- */
-void tmc2209_on(tmc2209_t *tmc) {
-	HAL_TIM_PWM_Start(tmc->stepTimer, tmc->stepTimerChannel);
-}
-
-
-
-
-/**
- *
- */
-void tmc2209_calculateCRC(uint8_t* datagram, uint8_t datagramLength){
+void tmc2209_calculate_CRC(uint8_t* datagram, uint8_t datagramLength){
 	// Taken from TMC2209 datasheet
 	int i,j;
 	uint8_t* crc = datagram + (datagramLength-1); // CRC located in last byte of message
@@ -546,3 +527,139 @@ void tmc2209_calculateCRC(uint8_t* datagram, uint8_t datagramLength){
 		} // for CRC bit
 	} // for message byte
 }
+
+
+
+
+/**
+ *
+ */
+void tmc2209_reset(tmc2209_t *tmc) {
+	// Do whatever is necessary to reset the device
+
+}
+
+/**
+ *
+ */
+void tmc2209_set_mode(tmc2209_t *tmc) {
+	// Do whatever is necessary to set the mode of the device
+	if(tmc->mode == TMC2209_FULL_GPIO_CONTROL) {
+
+		//ToDo: Is anything else required here?
+
+
+
+	} else if (tmc->mode == TMC2209_VELOCITY_CONTROL) {
+		// Ensure UART is set up correctly
+		tmc->gconf |= (TMC2209_pdn_disable | TMC2209_mstep_reg_select);
+		tmc2209_set_GCONF(tmc);
+
+		// Set vsense control related variables
+		tmc->vactual_MAX = TMC2209_VACTUAL_MAX_P;
+		tmc->acceleration = 1000;
+		tmc->vactual = 0x00000000;
+		tmc2209_set_VACTUAL(tmc);
+
+	} else if (tmc->mode == TMC2209_UART_STEP_DIR_CONTROL) {
+		// Ensure UART is set up correctly
+		tmc->gconf |= TMC2209_pdn_disable | TMC2209_mstep_reg_select;
+		tmc2209_set_GCONF(tmc);
+
+		//ToDo: Is anything else required here?
+
+	} else if (tmc->mode == TMC2209_FULL_UART_STEPPING_CONTROL) {
+		// Ensure UART is set up correctly
+		tmc->gconf |= TMC2209_pdn_disable | TMC2209_mstep_reg_select;
+		tmc2209_set_GCONF(tmc);
+
+		//ToDo: Is anything else required here?
+
+	} else {
+		// Invalid mode
+	}
+
+}
+
+/**
+ *
+ */
+void tmc2209_set_dir(tmc2209_t *tmc) {
+	// Check mode
+
+	// Do whatever is necessary to set the dir of the device
+
+}
+
+/**
+ *
+ */
+void tmc2209_step_off(tmc2209_t *tmc) {
+	// Check you are in the right mode
+
+	// Do thing
+	HAL_TIM_PWM_Stop(tmc->stepTimer, tmc->stepTimerChannel);
+}
+
+/**
+ *
+ */
+void tmc2209_step_on(tmc2209_t *tmc) {
+	// Check you are in the right mode
+
+	// Do thing
+	HAL_TIM_PWM_Start(tmc->stepTimer, tmc->stepTimerChannel);
+}
+
+/**
+ *
+ */
+void tmc2209_step(tmc2209_t *tmc) {
+	// Check you are in the right mode
+
+	// Do thing
+
+}
+
+/**
+ *
+ */
+void tmc2209_step_count(tmc2209_t *tmc, uint16_t count) {
+	// Check you are in the right mode
+
+	// Do thing
+
+}
+
+
+
+
+/**
+ *
+ */
+void tmc2209_set_speed(tmc2209_t *tmc, uint32_t speed) {
+
+}
+
+/**
+ *
+ */
+void tmc2209_set_acceleration(tmc2209_t *tmc, uint32_t acceleration) {
+
+}
+
+/**
+ *
+ */
+void tmc2209_on(tmc2209_t *tmc) {
+
+}
+
+/**
+ *
+ */
+void tmc2209_off(tmc2209_t *tmc) {
+
+}
+
+

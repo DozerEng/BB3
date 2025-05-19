@@ -25,12 +25,15 @@
 
 #include "usbd_cdc_if.h"
 #include "string.h"
+#include "stdint.h"
 
+#include "led.h"
 #include "rgb.h"
+#include "button.h"
 #include "servo.h"
 #include "eezybotarm.h"
-
 #include "tmc2209.h"
+#include "icm20608.h"
 
 //#include "math.h"
 
@@ -45,17 +48,14 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-/*
- * Specify which program you want to run
- */
+#define HEARTBEAT_TOP_LED_INTERVAL 	10		// Period in ms
+#define HEARTBEAT_BOT_LED_INTERVAL 	250 	// Period in ms
 
-//typedef enum {
-//	FIRMWARE_BB3 = 0,
-//	FIRMWARE_EEZYBOTARM = 1,
-//	FIRMWARE_LED_DISPLAY = 2
-//} firmware_t;
-//
-//#define ACTIVE_FIRMWARE firmware_bb3
+#define TASK_RGB_TIMEOUT			1000	// in ms
+
+// Pick which interfaces for logging and/or data collection
+#define LOG_USB 	true
+#define LOG_UART 	false
 
 
 /* USER CODE END PD */
@@ -97,6 +97,55 @@ static void MX_FDCAN1_Init(void);
 static void MX_FDCAN2_Init(void);
 static void MX_ADC2_Init(void);
 /* USER CODE BEGIN PFP */
+
+/*
+ *
+ * 	Events and loops
+ * 		- Events run once a loop
+ * 		- Loops are blocking and run forever
+ *
+ */
+
+
+
+// Intro tasks
+void rgb_green_blink(rgb_t *rgb1, rgb_t *rgb2, uint16_t dwellTime, uint8_t numberOfFlashes);
+void rgb_white_blink(rgb_t *rgb1, rgb_t *rgb2, uint16_t dwellTime, uint8_t numberOfFlashes);
+void rgb_intro_task(rgb_t *rgb1, rgb_t *rgb2, uint16_t dwellTime, uint8_t numberOfSteps);
+
+// Button tasks
+void tmc2209_3_button_task(
+		uint32_t period,
+		rgb_t *rgb1, rgb_t *rgb2,
+		button_t *topPB, button_t *midPB, button_t *botPB,
+		tmc2209_t *tmc1, tmc2209_t *tmc2);
+void tmc2209_icm20608_3_button_task(
+		uint32_t period,
+		rgb_t *rgb1, rgb_t *rgb2,
+		button_t *topPB, button_t *midPB, button_t *botPB,
+		icm20608_t *icm,
+		tmc2209_t *tmc1, tmc2209_t *tmc2);
+
+// Logging tasks
+void tmc2209_log_task(uint32_t period, tmc2209_t *tmc);
+void icm20608_log_task(uint32_t period, icm20608_t *icm);
+
+// Program task(s)
+
+void bb3_loop(
+		uint32_t period,
+		rgb_t *rgb1, rgb_t *rgb2,
+		button_t *topPB, button_t *midPB, button_t *botPB,
+		icm20608_t *imu,
+		tmc2209_t *rightWheel, tmc2209_t *leftWheel
+ 	 );
+
+ // Heartbeat(s)
+void heartbeat_task(
+		led_t *led1,
+		uint32_t led1Period,
+		led_t *led2,
+		uint32_t led2Period);
 
 /* USER CODE END PFP */
 
@@ -148,19 +197,6 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
 
-//  #define MAX	1
-//  #define MIN 0
-//  #define FORWARD 1
-//  #define REVERSE 0
-//
-//
-//  double integrator = 0;
-//  #define INTEGRATOR_LIMIT	75
-//  #define Kp_LPF	0.99
-//  #define Ki_LPF	-0.0125
-  #define WAIT_ms 1
-
-
   /*
    *  Servo motors
    */
@@ -171,54 +207,87 @@ int main(void)
   servo_t servo5 = Servo_newMG90S(&htim8, TIM_CHANNEL_2);
   servo_t servo6 = Servo_newMG90S(&htim8, TIM_CHANNEL_1);
 
+  /*
+   * Status LEDs
+   */
+  led_t topStatusLed = led_new(
+	STATUS_LED1_Pin,
+	STATUS_LED1_GPIO_Port,
+	1);
+  led_t botStatusLed = led_new(
+	STATUS_LED2_Pin,
+	STATUS_LED2_GPIO_Port,
+	1);
+
   /**
    *  RGB LEDs
    */
-  rgb_t rgb1 = {
-	.r_pin = LED1_R_Pin,
-	.r_port = LED1_R_GPIO_Port,
-	.g_pin = LED1_G_Pin,
-	.g_port = LED1_G_GPIO_Port,
-	.b_pin = LED1_B_Pin,
-	.b_port = LED1_B_GPIO_Port,
-	.currentState = RGB_OFF,
-	.activeState = 1
-  };
-  rgb_t rgb2 = {
-  	.r_pin = LED2_R_Pin,
-  	.r_port = LED2_R_GPIO_Port,
-  	.g_pin = LED2_G_Pin,
-  	.g_port = LED2_G_GPIO_Port,
-  	.b_pin = LED2_B_Pin,
-  	.b_port = LED2_B_GPIO_Port,
-  	.currentState = RGB_OFF,
-  	.activeState = 1
-    };
+  rgb_t rgb1 = rgb_new(
+	LED1_R_Pin,
+	LED1_R_GPIO_Port,
+	LED1_G_Pin,
+	LED1_G_GPIO_Port,
+	LED1_B_Pin,
+	LED1_B_GPIO_Port,
+	RGB_OFF,
+	1);
+  rgb_t rgb2 = rgb_new(
+	LED2_R_Pin,
+	LED2_R_GPIO_Port,
+	LED2_G_Pin,
+	LED2_G_GPIO_Port,
+	LED2_B_Pin,
+	LED2_B_GPIO_Port,
+	RGB_OFF,
+	1);
+
+  /**
+   *  Buttons
+   */
+  button_t topPB = button_new(
+	TOP_PB_Pin,
+	TOP_PB_GPIO_Port,
+	0);
+  button_t midPB = button_new(
+	MID_PB_Pin,
+	MID_PB_GPIO_Port,
+	0);
+  button_t botPB = button_new(
+    BOT_PB_Pin,
+    BOT_PB_GPIO_Port,
+    0);
+
+  /**
+   * Stepper motor drivers
+   */
+  icm20608_t icm = icm20608_new(
+    IMU_INTERRUPT_Pin,
+    IMU_INTERRUPT_GPIO_Port);
 
   /**
    * Stepper motor drivers
    */
   tmc2209_t rightMotor = tmc2209_new(
-		  &htim2,
-		  TIM_CHANNEL_2,
-		  RIGHT_DIR_Pin,
-		  RIGHT_DIR_GPIO_Port,
-		  &huart1,
-		  TMC2209_ADDR_1);
+    TMC2209_VELOCITY_CONTROL,
+	TMC2209_STANDARD_MOTOR_DIR,
+    &htim2,
+	TIM_CHANNEL_2,
+	RIGHT_DIR_Pin,
+	RIGHT_DIR_GPIO_Port,
+	&huart1,
+	TMC2209_ADDR_1);
+
   tmc2209_t leftMotor = tmc2209_new(
-		  &htim2,
-		  TIM_CHANNEL_1,
-  		  LEFT_DIR_Pin,
-  		  LEFT_DIR_GPIO_Port,
-  		  &huart1,
-  		  TMC2209_ADDR_2);
+	TMC2209_VELOCITY_CONTROL,
+	TMC2209_INVERSE_MOTOR_DIR,
+    &htim2,
+    TIM_CHANNEL_1,
+    LEFT_DIR_Pin,
+    LEFT_DIR_GPIO_Port,
+    &huart1,
+    TMC2209_ADDR_2);
 
-  /**
-   * Push buttons
-   */
 
-  #define PB_PRESSED	0
-  #define PB_RELEASED	1
 
 
 
@@ -227,19 +296,10 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-  /*
-   * Amber Status LEDs
-   * 	- One LED toggles every iteration of the while loop
-   * 	- The other toggles every i_MAX loops
-   */
-  HAL_GPIO_WritePin(STATUS_LED1_GPIO_Port, STATUS_LED1_Pin, 0);
-  HAL_GPIO_WritePin(STATUS_LED2_GPIO_Port, STATUS_LED2_Pin, 0);
-  uint8_t i = 0;
-  uint8_t i_MAX = 100;
 
   // Delay to wait for USB to be ready
   // TODO wait until USB is ready for transmission, Note: CDC_Transit_FS returns success or failure
-  HAL_Delay(250);
+//  HAL_Delay(250);
 
   /*
    * Create new object
@@ -254,25 +314,54 @@ int main(void)
   /*
    * Start of infinite loop!
    */
-  uint32_t increment = 1000;
+
+
+  // Intro tasks
+  rgb_intro_task(&rgb1, &rgb2, 50, 40);
+  HAL_Delay(500);
+//  rgb_green_blink(&rgb1, &rgb2, 100, 5);
+  rgb_white_blink(&rgb1, &rgb2, 100, 5);
+
+
   while (1)
   {
 
-	  /*
-	   * Testing Arena
-	   * - Data in this section is meant to be temporary and is regularly be deleted/modified
-	   * - Un-comment the start and end comment blocks to enable/disable
-	   */
-//	  /* Enable/Disable
-	  // Use buttons to test functions
-	  // Check buttons
-	  uint8_t topPB, botPB, midPB;
-	  topPB = HAL_GPIO_ReadPin(TOP_PB_GPIO_Port, TOP_PB_Pin);
-	  midPB = HAL_GPIO_ReadPin(MID_PB_GPIO_Port, MID_PB_Pin);
-	  botPB = HAL_GPIO_ReadPin(BOT_PB_GPIO_Port, BOT_PB_Pin);
+	  // Button tasks
+	  tmc2209_3_button_task(
+			  100,
+			  &rgb1, &rgb2,
+			  &topPB, &midPB, &botPB,
+			  &rightMotor, &leftMotor);
+//	  tmc2209_icm20608_3_button_task(
+//			  &rightMotor, &leftMotor,
+//			  &icm,
+//			  &topPB, &midPB, &botPB);
 
-	  if (topPB == PB_PRESSED)
-	  {
+	  // Logging tasks
+//	  tmc2209_log_task(&rightMotor);
+//	  tmc2209_log_task(&leftMotor);
+//	  icm20608_log_task(&icm);
+
+	  // Program task(s)
+
+//	  bb3_loop(
+//			  &rgb1, &rgb2,
+//			  &topPB, &midPB, &botPB,
+//			  &icm,
+//			  &rightMotor, &leftMotor);
+
+	   // Heartbeat(s)
+	  heartbeat_task(
+			  &topStatusLed,
+			  HEARTBEAT_TOP_LED_INTERVAL,
+			  &botStatusLed,
+			  HEARTBEAT_BOT_LED_INTERVAL);
+
+
+
+
+
+
 //		  uint8_t Test[] = "Hello World !!!\r\n"; //Data to send
 //		  HAL_UART_Transmit(&huart2,Test,sizeof(Test),10);// Sending in normal mode
 //
@@ -282,31 +371,6 @@ int main(void)
 //		  HAL_UART_Transmit(&huart1, msg, 6, 10);
 
 
-		  // VACTUAL control
-		  if (leftMotor.vactual > (TMC2209_VACTUAL_MAX_P - increment) ) {
-			  leftMotor.vactual = TMC2209_VACTUAL_MAX_P;
-		  } else {
-			  leftMotor.vactual = leftMotor.vactual + increment;
-		  }
-		  tmc2209_set_VACTUAL(&leftMotor);
-
-		  if (rightMotor.vactual > (TMC2209_VACTUAL_MAX_P - increment) ) {
-			  rightMotor.vactual = TMC2209_VACTUAL_MAX_P;
-		  } else {
-			  rightMotor.vactual = rightMotor.vactual + increment;
-		  }
-		  tmc2209_set_VACTUAL(&rightMotor);
-
-		  // STEP / DIR control
-//		  tmc2209_on(&rightMotor);
-
-
-
-
-		  while(HAL_GPIO_ReadPin(TOP_PB_GPIO_Port, TOP_PB_Pin) == PB_PRESSED);
-	  }
-	  if (midPB == PB_PRESSED)
-	  {
 //		  tmc2209_read_request_t readDatagram = {
 //		  			.slaveAddress = TMC2209_ADDR_1,
 //		  			.registerAddress = TMC2209_GCONF
@@ -319,76 +383,10 @@ int main(void)
 //		  HAL_UART_Transmit(&huart1, msg, 6, 10);
 
 
-		  // VACTUAL control
-		  if (leftMotor.vactual < increment ) {
-			  leftMotor.vactual = 0x000000;
-		  } else {
-			  leftMotor.vactual = leftMotor.vactual - increment;
-		  }
-		  tmc2209_set_VACTUAL(&leftMotor);
-
-		  if (rightMotor.vactual < increment ) {
-			  rightMotor.vactual = 0x000000;
-		  } else {
-			  rightMotor.vactual = rightMotor.vactual - increment;
-		  }
-		  tmc2209_set_VACTUAL(&rightMotor);
-
-
-		  // STEP / DIR control
-//		  tmc2209_on(&leftMotor);
-
-
-
-		  while(HAL_GPIO_ReadPin(MID_PB_GPIO_Port, MID_PB_Pin) == PB_PRESSED);
-	  }
-	  if (botPB == PB_PRESSED)
-	  {
 //		  char msg[] = {0x00, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x00};
 //		  uint8_t status;
 //		  status = HAL_UART_Transmit(&huart2, msg, 18, 10);
 //		  HAL_UART_Transmit(&huart1, msg, 18, 10);
-
-
-
-		  // VACTUAL control
-		  leftMotor.vactual = 0x00000000;
-		  rightMotor.vactual = 0x00000000;
-		  tmc2209_set_VACTUAL(&leftMotor);
-		  tmc2209_set_VACTUAL(&rightMotor);
-
-		  // STEP / DIR control
-//		  tmc2209_off(&leftMotor);
-//		  tmc2209_off(&rightMotor);
-
-
-
-		  while(HAL_GPIO_ReadPin(BOT_PB_GPIO_Port, BOT_PB_Pin) == PB_PRESSED);
-	  }
-//	  */ EO Testing Arena
-
-
-
-	  /*
-	   * BalanceBot3
-	   * - Un-comment the start and end comment blocks to enable/disable
-	   */
-	  /* Enable/Disable
-
-
-	  bb3_doSomethingCrazy(&bb3);
-
-
-
-
-
-
-
-
-
-
-
-	   */ // EO BalanceBot3
 
 
 
@@ -425,18 +423,7 @@ int main(void)
 	  */ // EO EEZYBOTARM MK2
 
 
-	  /*
-	   * Heart beat
-	   */
-	  // Toggle system LEDs every i_MAX iterations
-	  if( i < i_MAX) {
-		  i++;
-	  } else {
-		  i = 0;
-		  HAL_GPIO_TogglePin(STATUS_LED2_GPIO_Port, STATUS_LED2_Pin);
-	  }
-	  // Toggle the other system LED every iteration
-	  HAL_GPIO_TogglePin(STATUS_LED1_GPIO_Port, STATUS_LED1_Pin);
+
 //	  HAL_Delay(WAIT_ms); // Delay if needed
 
 
@@ -1062,6 +1049,301 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+/*
+ * Intro tasks
+ */
+void rgb_intro_task(rgb_t *rgb1, rgb_t *rgb2, uint16_t dwellTime, uint8_t numberOfSteps) {
+	for (uint8_t i = 0; i < numberOfSteps; i++) {
+		rgb_cycle(rgb1);
+		rgb_reverse_cycle(rgb2);
+		HAL_Delay(dwellTime);
+	}
+	// Turn off between movements
+	rgb_set_off(rgb1);
+	rgb_set_off(rgb2);
+}
+
+
+void rgb_green_blink(rgb_t *rgb1, rgb_t *rgb2, uint16_t dwellTime, uint8_t numberOfFlashes) {
+	for (uint8_t i = 0; i < numberOfFlashes; i++) {
+		rgb_set_green(rgb1);
+		rgb_set_green(rgb2);
+
+		HAL_Delay(dwellTime);
+		rgb_set_off(rgb1);
+		rgb_set_off(rgb2);
+		HAL_Delay(dwellTime);
+	}
+	// Turn off to finish
+	rgb_set_off(rgb1);
+	rgb_set_off(rgb2);
+}
+
+
+void rgb_white_blink(rgb_t *rgb1, rgb_t *rgb2, uint16_t dwellTime, uint8_t numberOfFlashes) {
+	for (uint8_t i = 0; i < numberOfFlashes; i++) {
+		rgb_set_white(rgb1);
+		rgb_set_white(rgb2);
+
+		HAL_Delay(dwellTime);
+		rgb_set_off(rgb1);
+		rgb_set_off(rgb2);
+		HAL_Delay(dwellTime);
+	}
+	// Turn off to finish
+	rgb_set_off(rgb1);
+	rgb_set_off(rgb2);
+}
+
+/*
+ * Button tasks
+ */
+
+void tmc2209_3_button_task(
+	uint32_t period, // in ms
+	rgb_t *rgb1,
+	rgb_t *rgb2,
+	button_t *topPB,
+	button_t *midPB,
+	button_t *botPB,
+	tmc2209_t *tmc1,
+	tmc2209_t *tmc2) {
+
+	static uint32_t previousTick = 0;
+	static uint32_t previousEventTick = 0;
+	static uint32_t previousButtonPressTick = 0;
+
+	uint32_t currentTick = HAL_GetTick();
+	if(previousTick == 0){
+		// If zero, it is the first time through
+		previousTick = currentTick;
+	}
+
+	/*
+	 * Top PB
+	 */
+	if(currentTick > (previousEventTick + period)) {
+		previousEventTick = currentTick;
+		button_read(topPB);
+		if (topPB->currentState == BUTTON_PRESSED) {
+			previousButtonPressTick = currentTick;
+			// Velocity Control
+			tmc1->vactual += tmc1->acceleration ;
+			tmc2209_set_VACTUAL(tmc1);
+			tmc2->vactual += tmc1->acceleration ;
+			tmc2209_set_VACTUAL(tmc2);
+
+			// Toggle LEDs to signal change
+			if(rgb1->currentColor == RGB_YELLOW) {
+				rgb_set_red(rgb1);
+				rgb_set_yellow(rgb2);
+			} else {
+				rgb_set_yellow(rgb1);
+				rgb_set_red(rgb2);
+			}
+		}
+
+		/*
+		 * Mid PB
+		 */
+		button_read(midPB);
+		if (midPB->currentState == BUTTON_PRESSED) {
+			previousButtonPressTick = currentTick;
+			// Velocity Control
+			if (tmc1->mode == TMC2209_VELOCITY_CONTROL) {
+				tmc1->vactual -= tmc1->acceleration ;
+				tmc2209_set_VACTUAL(tmc1);
+			}
+			if(tmc2->mode == TMC2209_VELOCITY_CONTROL) {
+				tmc2->vactual -= tmc2->acceleration ;
+				tmc2209_set_VACTUAL(tmc2);
+			}
+
+			// Toggle LEDs to signal change
+			if(rgb1->currentColor == RGB_BLUE) {
+				rgb_set_green(rgb1);
+				rgb_set_blue(rgb2);
+			} else {
+				rgb_set_blue(rgb1);
+				rgb_set_green(rgb2);
+			}
+		}
+
+
+		/*
+		 * Bot PB - Braking
+		 */
+
+		button_read(botPB);
+		if (botPB->currentState == BUTTON_PRESSED) {
+			previousButtonPressTick = currentTick;
+			// VACTUAL control
+			if((tmc1->vactual < (5* tmc1->acceleration)) && tmc1->vactual > (-5 * tmc1->acceleration)) {
+				tmc1->vactual = 0x000000;
+			} else {
+				if (tmc1->vactual > 0) {
+					tmc1->vactual -= 5*tmc1->acceleration;
+				} else {
+					tmc1->vactual += 5*tmc1->acceleration;
+				}
+			}
+			tmc2209_set_VACTUAL(tmc1);
+
+
+			// VACTUAL control
+			if((tmc2->vactual < (5*tmc2->acceleration)) && (tmc2->vactual > (-5 * tmc2->acceleration ))) {
+				tmc2->vactual = 0x000000;
+			} else {
+				if (tmc2->vactual > 0) {
+					tmc2->vactual -= 5*tmc2->acceleration;
+				} else {
+					tmc2->vactual += 5*tmc2->acceleration;
+				}
+			}
+			tmc2209_set_VACTUAL(tmc2);
+
+			// Toggle LEDs to signal change
+			if(rgb1->currentColor == RGB_VIOLET) {
+				rgb_set_turquoise(rgb1);
+				rgb_set_violet(rgb2);
+			} else {
+				rgb_set_violet(rgb1);
+				rgb_set_turquoise(rgb2);
+			}
+
+		}
+
+	}
+	// If there is not button activity, turn off LEDs
+	if(currentTick > (previousButtonPressTick + TASK_RGB_TIMEOUT)) {
+		rgb_set_off(rgb1);
+		rgb_set_off(rgb2);
+	}
+
+
+}
+
+void tmc2209_icm20608_3_button_task(
+		uint32_t period,
+		rgb_t *rgb1,
+		rgb_t *rgb2,
+		button_t *topPB,
+		button_t *midPB,
+		button_t *botPB,
+		icm20608_t *icm,
+		tmc2209_t *tmc1,
+		tmc2209_t *tmc2) {
+
+	// Top PB
+	button_read(topPB);
+	while (topPB->currentState == topPB->pressedState) {
+
+
+		button_read(topPB);
+	}
+
+	// Middle PB
+	button_read(midPB);
+	while (midPB->currentState == midPB->pressedState) {
+
+
+		button_read(topPB);
+	}
+
+	// Bottom PB
+	button_read(botPB);
+	while (botPB->currentState == botPB->pressedState) {
+
+
+		button_read(botPB);
+	}
+}
+
+ /*
+  * Logging tasks
+  */
+void tmc2209_log_task(uint32_t period, tmc2209_t *tmc) {
+	if(LOG_USB == true) {
+
+	}
+
+	if(LOG_UART ==	false) {
+
+//		  tmc2209_read_request_t readDatagram = {
+//		  			.slaveAddress = TMC2209_ADDR_1,
+//		  			.registerAddress = TMC2209_GCONF
+//		  	};
+//		  uint32_t data = tmc2209_read(&rightMotor, readDatagram);
+//		  char msg[] = {0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA};
+//
+//		  uint8_t status;
+//		  status = HAL_UART_Transmit(&huart2, &data, 4, 10);
+//		  HAL_UART_Transmit(&huart1, msg, 6, 10);
+
+
+	}
+}
+
+void icm20608_log_task(uint32_t period, icm20608_t *icm) {
+	if(LOG_USB == true) {
+		//ToDo: this
+		return;
+	}
+
+	if(LOG_UART ==	false) {
+		//ToDo: this
+		return;
+	}
+}
+
+
+/*
+ * Program task(s)
+ */
+void bb3_loop(
+		uint32_t period,
+		rgb_t *rgb1, rgb_t *rgb2,
+		button_t *topPB, button_t *midPB, button_t *botPB,
+		icm20608_t *imu,
+		tmc2209_t *rightWheel, tmc2209_t *leftWheel
+ 	 ) {
+	// ToDo; This
+	return;
+
+}
+
+/*
+ * Heartbeat(s)
+ */
+void heartbeat_task(
+	led_t *led1,
+	uint32_t led1Period,
+	led_t *led2,
+	uint32_t led2Period) {
+	static uint32_t led1PreviousEvent = 0;
+	static uint32_t led2PreviousEvent = 0;
+
+	uint32_t currentTick = HAL_GetTick();
+
+	// If it's the first run, set PreviousEvent variable to current tick
+	if(led1PreviousEvent == 0) {
+		led1PreviousEvent = currentTick;
+		led2PreviousEvent = currentTick;
+	}
+
+	// Toggle system LEDs every period
+	if (currentTick > (led1PreviousEvent + led1Period)) {
+		led1PreviousEvent = currentTick;
+		led_toggle(led1);
+	}
+	if (currentTick > (led2PreviousEvent + led2Period)) {
+		led2PreviousEvent = currentTick;
+		led_toggle(led2);
+	}
+
+}
+
 
 
 

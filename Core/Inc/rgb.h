@@ -20,13 +20,8 @@
 
 #include "stdbool.h"
 
-//
-//#define RGB_LED_ON		1
-//#define RGB_LED_OFF 	0
-
-
 /**
- * RGB Data types
+ * Data types
  */
 
 /** Connection type is logic signal to turn on the LED */
@@ -39,7 +34,7 @@ typedef enum {
 	RGB_BLUE = 5,
 	RGB_VIOLET = 6,
 	RGB_WHITE = 7
-} rgb_state_t ;
+} rgb_color_t ;
 
 typedef struct {
 	uint16_t r_pin;
@@ -48,23 +43,39 @@ typedef struct {
 	GPIO_TypeDef *g_port;
 	uint16_t b_pin;
 	GPIO_TypeDef *b_port;
-	rgb_state_t currentState;
-	bool activeState; //Active high or active low
+	rgb_color_t currentColor;
+	bool activeState; // Are LEDs active high or active low
 } rgb_t;
 
-void RGB_setRed(rgb_t *rgb);
-void RGB_setGreen(rgb_t *rgb);
-void RGB_setBlue(rgb_t *rgb);
-void RGB_setViolet(rgb_t *rgb);
-void RGB_setYellow(rgb_t *rgb);
-void RGB_setTurquoise(rgb_t *rgb);
-void RGB_setWhite(rgb_t *rgb);
-void RGB_setOff(rgb_t *rgb);
+/*
+ * Functions
+ */
+rgb_t rgb_new(
+	uint16_t r_pin,
+	GPIO_TypeDef *r_port,
+	uint16_t g_pin,
+	GPIO_TypeDef *g_port,
+	uint16_t b_pin,
+	GPIO_TypeDef *b_port,
+	rgb_color_t currentColor,
+	bool activeState
+	);
+void rgb_set_red(rgb_t *rgb);
+void rgb_set_green(rgb_t *rgb);
+void rgb_set_blue(rgb_t *rgb);
+void rgb_set_violet(rgb_t *rgb);
+void rgb_set_yellow(rgb_t *rgb);
+void rgb_set_turquoise(rgb_t *rgb);
+void rgb_set_white(rgb_t *rgb);
+void rgb_set_off(rgb_t *rgb);
 
-void RGB_setState(rgb_t *rgb);
-void RGB_cycle(rgb_t *rgb);
-void RGB_setUserInput(rgb_t *rgb);
+void rgb_set_color(rgb_t *rgb);
+
+void rgb_cycle(rgb_t *rgb);
+void rgb_reverse_cycle(rgb_t *rgb);
+
+void rgb_set_user_input(rgb_t *rgb);
 
 
 
-#endif /* INC_RGB_H_ */
+#endif /* INC_rgb_H_ */

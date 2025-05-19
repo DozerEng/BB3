@@ -1,0 +1,4 @@
+../Core/Src/led.c:11:8:led_new	48	static
+../Core/Src/led.c:26:6:led_on	16	static
+../Core/Src/led.c:33:6:led_off	16	static
+../Core/Src/led.c:41:6:led_toggle	16	static

@@ -7,98 +7,118 @@
 
 #include "rgb.h"
 
-/**
- * Violet = red + blue
- * Yellow = red + green
- * Turquoise = green + blue
- * White = red + green + blue
- * Off =
- *
-*/
-void RGB_setRed(rgb_t *rgb) {
+
+
+rgb_t rgb_new(
+	uint16_t r_pin,
+	GPIO_TypeDef *r_port,
+	uint16_t g_pin,
+	GPIO_TypeDef *g_port,
+	uint16_t b_pin,
+	GPIO_TypeDef *b_port,
+	rgb_color_t currentColor,
+	bool activeState
+	) {
+	rgb_t newRgb;
+	newRgb.r_pin = r_pin;
+	newRgb.r_port = r_port;
+	newRgb.g_pin = g_pin;
+	newRgb.g_port = g_port;
+	newRgb.b_pin = b_pin;
+	newRgb.b_port = b_port;
+	newRgb.currentColor = currentColor;
+	newRgb.activeState = activeState;
+
+	rgb_set_color(&newRgb);
+
+	return newRgb;
+
+}
+
+void rgb_set_red(rgb_t *rgb) {
 	HAL_GPIO_WritePin(rgb->r_port, rgb->r_pin, rgb->activeState);
 	HAL_GPIO_WritePin(rgb->g_port, rgb->g_pin, !(rgb->activeState));
 	HAL_GPIO_WritePin(rgb->b_port, rgb->b_pin, !(rgb->activeState));
-	rgb->currentState = RGB_RED;
+	rgb->currentColor = RGB_RED;
 }
 
-void RGB_setGreen(rgb_t *rgb) {
+void rgb_set_green(rgb_t *rgb) {
 	HAL_GPIO_WritePin(rgb->r_port, rgb->r_pin, !(rgb->activeState));
 	HAL_GPIO_WritePin(rgb->g_port, rgb->g_pin, rgb->activeState);
 	HAL_GPIO_WritePin(rgb->b_port, rgb->b_pin, !(rgb->activeState));
-	rgb->currentState = RGB_GREEN;
+	rgb->currentColor = RGB_GREEN;
 }
 
-void RGB_setBlue(rgb_t *rgb) {
+void rgb_set_blue(rgb_t *rgb) {
 	HAL_GPIO_WritePin(rgb->r_port, rgb->r_pin, !(rgb->activeState));
 	HAL_GPIO_WritePin(rgb->g_port, rgb->g_pin, !(rgb->activeState));
 	HAL_GPIO_WritePin(rgb->b_port, rgb->b_pin, rgb->activeState);
-	rgb->currentState = RGB_BLUE;
+	rgb->currentColor = RGB_BLUE;
 }
 
-void RGB_setViolet(rgb_t *rgb) {
+void rgb_set_violet(rgb_t *rgb) {
 	HAL_GPIO_WritePin(rgb->r_port, rgb->r_pin, rgb->activeState);
 	HAL_GPIO_WritePin(rgb->g_port, rgb->g_pin, !(rgb->activeState));
 	HAL_GPIO_WritePin(rgb->b_port, rgb->b_pin, rgb->activeState);
-	rgb->currentState = RGB_VIOLET;
+	rgb->currentColor = RGB_VIOLET;
 }
 
-void RGB_setYellow(rgb_t *rgb) {
+void rgb_set_yellow(rgb_t *rgb) {
 	HAL_GPIO_WritePin(rgb->r_port, rgb->r_pin, rgb->activeState);
 	HAL_GPIO_WritePin(rgb->g_port, rgb->g_pin, rgb->activeState);
 	HAL_GPIO_WritePin(rgb->b_port, rgb->b_pin, !(rgb->activeState));
-	rgb->currentState = RGB_YELLOW;
+	rgb->currentColor = RGB_YELLOW;
 }
 
-void RGB_setTurquoise(rgb_t *rgb) {
+void rgb_set_turquoise(rgb_t *rgb) {
 	HAL_GPIO_WritePin(rgb->r_port, rgb->r_pin, !(rgb->activeState));
 	HAL_GPIO_WritePin(rgb->g_port, rgb->g_pin, rgb->activeState);
 	HAL_GPIO_WritePin(rgb->b_port, rgb->b_pin, rgb->activeState);
-	rgb->currentState = RGB_TURQUOISE;
+	rgb->currentColor = RGB_TURQUOISE;
 }
 
-void RGB_setWhite(rgb_t *rgb) {
+void rgb_set_white(rgb_t *rgb) {
 	HAL_GPIO_WritePin(rgb->r_port, rgb->r_pin, rgb->activeState);
 	HAL_GPIO_WritePin(rgb->g_port, rgb->g_pin, rgb->activeState);
 	HAL_GPIO_WritePin(rgb->b_port, rgb->b_pin, rgb->activeState);
-	rgb->currentState = RGB_WHITE;
+	rgb->currentColor = RGB_WHITE;
 }
 
-void RGB_setOff(rgb_t *rgb) {
+void rgb_set_off(rgb_t *rgb) {
 	HAL_GPIO_WritePin(rgb->r_port, rgb->r_pin, !(rgb->activeState));
 	HAL_GPIO_WritePin(rgb->g_port, rgb->g_pin, !(rgb->activeState));
 	HAL_GPIO_WritePin(rgb->b_port, rgb->b_pin, !(rgb->activeState));
-	rgb->currentState = RGB_OFF;
+	rgb->currentColor = RGB_OFF;
 }
 
-void RGB_setState(rgb_t *rgb) {
-	switch ( rgb->currentState ) {
+void rgb_set_color(rgb_t *rgb) {
+	switch ( rgb->currentColor ) {
 		case RGB_RED:
-			RGB_setRed(rgb);
+			rgb_set_red(rgb);
 			break;
 		case RGB_GREEN:
-			RGB_setGreen(rgb);
+			rgb_set_green(rgb);
 			break;
 		case RGB_BLUE:
-			RGB_setBlue(rgb);
+			rgb_set_blue(rgb);
 			break;
 		case RGB_VIOLET:
-			RGB_setViolet(rgb);
+			rgb_set_violet(rgb);
 			break;
 		case RGB_YELLOW:
-			RGB_setYellow(rgb);
+			rgb_set_yellow(rgb);
 			break;
 		case RGB_TURQUOISE:
-			RGB_setTurquoise(rgb);
+			rgb_set_turquoise(rgb);
 			break;
 		case RGB_WHITE:
-			RGB_setWhite(rgb);
+			rgb_set_white(rgb);
 			break;
 		case RGB_OFF:
-			RGB_setOff(rgb);
+			rgb_set_off(rgb);
 			break;
 		default:
-			fprintf(stderr, "Invalid state RGB_setState: %i\n\r", rgb->currentState);
+			fprintf(stderr, "Invalid state RGB_setState: %i\n\r", rgb->currentColor);
 		}
 }
 
@@ -106,21 +126,21 @@ void RGB_setState(rgb_t *rgb) {
  * @breif Cycle to next color combo, white exclusive
  * @param RGB
  */
-void RGB_cycle(rgb_t *rgb) {
-	if( rgb->currentState >= (RGB_WHITE - 1) ) {
-		rgb->currentState = RGB_RED;
+void rgb_cycle(rgb_t *rgb) {
+	if( rgb->currentColor >= (RGB_WHITE - 1) ) {
+		rgb->currentColor = RGB_RED;
 	} else {
-		rgb->currentState ++;
+		rgb->currentColor ++;
 	}
-	RGB_setState(rgb);
+	rgb_set_color(rgb);
 }
-void RGB_reverseCycle(rgb_t *rgb) {
-	if( rgb->currentState <= RGB_RED ) {
-		rgb->currentState = (RGB_WHITE - 1);
+void rgb_reverse_cycle(rgb_t *rgb) {
+	if( rgb->currentColor<= RGB_RED ) {
+		rgb->currentColor = (RGB_WHITE - 1);
 	} else {
-		rgb->currentState --;
+		rgb->currentColor --;
 	}
-	RGB_setState(rgb);
+	rgb_set_color(rgb);
 }
 
 
@@ -128,7 +148,7 @@ void RGB_reverseCycle(rgb_t *rgb) {
  * @breif Read from scanf and update RGB LED
  * @param RGB
  */
-void RGB_setUserInput(rgb_t *rgb) {
+void rgb_set_user_input(rgb_t *rgb) {
 	// Get color from user
 
 	uint8_t STRING_LENGTH = 20;
@@ -142,21 +162,21 @@ void RGB_setUserInput(rgb_t *rgb) {
     }
     // Update RGB LED and
     if ((strcmp(colorLower, "r") == 0) || (strcmp(colorLower, "red") == 0 )) {
-		RGB_setRed(rgb);
+		rgb_set_red(rgb);
     } else if ((strcmp(colorLower, "g") == 0) || (strcmp(colorLower, "green") == 0 )) {
-		RGB_setGreen(rgb);
+		rgb_set_green(rgb);
     } else if ((strcmp(colorLower, "b") == 0) || (strcmp(colorLower, "blue") == 0 )) {
-    	RGB_setBlue(rgb);
+    	rgb_set_blue(rgb);
     } else if ((strcmp(colorLower, "v") == 0) || (strcmp(colorLower, "violet") == 0 )) {
-    	RGB_setViolet(rgb);
+    	rgb_set_violet(rgb);
     } else if ((strcmp(colorLower, "y") == 0) || (strcmp(colorLower, "yellow") == 0 )) {
-    	RGB_setYellow(rgb);
+    	rgb_set_yellow(rgb);
     } else if ((strcmp(colorLower, "t") == 0) || (strcmp(colorLower, "turquoise") == 0 )) {
-		RGB_setTurquoise(rgb);
+		rgb_set_turquoise(rgb);
     } else if ((strcmp(colorLower, "w") == 0) || (strcmp(colorLower, "white") == 0 ) || (strcmp(colorLower, "on") == 0 )) {
-    	RGB_setWhite(rgb);
+    	rgb_set_white(rgb);
     } else if (strcmp(colorLower, "off") == 0) {
-		RGB_setOff(rgb);
+		rgb_set_off(rgb);
 	} else {
 		// Invalid color
 		printf("Unable to change color, Invalid color: %s\n\r", color);

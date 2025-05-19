@@ -1,4 +1,8 @@
+"./Core/Src/bb3.o"
+"./Core/Src/button.o"
 "./Core/Src/eezybotarm.o"
+"./Core/Src/icm20608.o"
+"./Core/Src/led.o"
 "./Core/Src/main.o"
 "./Core/Src/pid.o"
 "./Core/Src/rgb.o"
