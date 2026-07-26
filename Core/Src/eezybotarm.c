@@ -327,39 +327,39 @@ void eezybotarm_setMode(eezybotarm_t* eezy, eezybotarm_mode_t mode) {
 	// Configure mode
 	switch(mode) {
 	case eezybotarm_OFF:
-		RGB_setOff(eezy->modeRGB);
+		rgb_set_off(eezy->modeRGB);
 		eezy->jogStepSize = 0.0;
 		// Actually turn off servos
 		eezybotarm_off(eezy);
 		updateMessage = "Changed mode to off\n\r";
 		break;
 	case eezybotarm_SLOWEST:
-		RGB_setBlue(eezy->modeRGB);
+		rgb_set_blue(eezy->modeRGB);
 		eezy->jogStepSize = EEZYBOTARM_SLOWEST_JOG;
 		updateMessage = "Changed mode to slowest\n\r";
 		break;
 	case eezybotarm_SLOW:
-		RGB_setTurquoise(eezy->modeRGB);
+		rgb_set_turquoise(eezy->modeRGB);
 		eezy->jogStepSize = EEZYBOTARM_SLOW_JOG;
 		updateMessage = "Changed mode to slow\n\r";
 		break;
 	case eezybotarm_NORMAL:
-		RGB_setWhite(eezy->modeRGB);
+		rgb_set_white(eezy->modeRGB);
 		eezy->jogStepSize = EEZYBOTARM_NORMAL_JOG;
 		updateMessage = "Changed mode to normal\n\r";
 		break;
 	case eezybotarm_FAST:
-		RGB_setGreen(eezy->modeRGB);
+		rgb_set_green(eezy->modeRGB);
 		eezy->jogStepSize = EEZYBOTARM_FAST_JOG;
 		updateMessage = "Changed mode to fast\n\r";
 		break;
 	case eezybotarm_FASTEST:
-		RGB_setYellow(eezy->modeRGB);
+		rgb_set_yellow(eezy->modeRGB);
 		eezy->jogStepSize = EEZYBOTARM_FASTEST_JOG;
 		updateMessage = "Changed mode to fastest\n\r";
 		break;
 	case eezybotarm_FAULT:
-		RGB_setRed(eezy->modeRGB);
+		rgb_set_red(eezy->modeRGB);
 		eezy->jogStepSize = 0.0;
 		// Turn off servos for safety
 		eezybotarm_off(eezy);
@@ -389,32 +389,32 @@ void eezybotarm_event(eezybotarm_t* eezy, eezybotarm_event_t eventType){
 	switch(eventType) {
 	case eezybotarm_NO_EVENT:
 		if(eezy->eventTicksRemaining <= 0) {
-			RGB_setOff(eezy->eventRGB);
+			rgb_set_off(eezy->eventRGB);
 		} else {
 			eezy->eventTicksRemaining = eezy->eventTicksRemaining - 1;
 		}
 		// Return so the count isn't reset
 		return;
 	case eezybotarm_TOOL_EVENT:
-		RGB_setGreen(eezy->eventRGB);
+		rgb_set_green(eezy->eventRGB);
 		break;
 	case eezybotarm_ELBOW_EVENT:
-		RGB_setBlue(eezy->eventRGB);
+		rgb_set_blue(eezy->eventRGB);
 		break;
 	case eezybotarm_SHOULDER_EVENT:
-		RGB_setViolet(eezy->eventRGB);
+		rgb_set_violet(eezy->eventRGB);
 		break;
 	case eezybotarm_BASE_EVENT:
-		RGB_setYellow(eezy->eventRGB);
+		rgb_set_yellow(eezy->eventRGB);
 		break;
 	case eezybotarm_MOVE_EVENT:
-		RGB_setTurquoise(eezy->eventRGB);
+		rgb_set_turquoise(eezy->eventRGB);
 		break;
 	case eezybotarm_CONFIG_EVENT:
-		RGB_setWhite(eezy->eventRGB);
+		rgb_set_white(eezy->eventRGB);
 		break;
 	case eezybotarm_ERROR_EVENT:
-		RGB_setRed(eezy->eventRGB);
+		rgb_set_red(eezy->eventRGB);
 		break;
 	}
 	// Reset event time remaining counter

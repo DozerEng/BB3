@@ -1,1 +1,15 @@
-../Core/Src/bb3.c:10:6:tmc2209_button_task	1
+../Core/Src/bb3.c:11:7:bb3_new	1
+../Core/Src/bb3.c:51:6:rgb_intro_task	2
+../Core/Src/bb3.c:63:6:rgb_green_blink	2
+../Core/Src/bb3.c:79:6:rgb_white_blink	2
+../Core/Src/bb3.c:97:6:bb3_task_button	7
+../Core/Src/bb3.c:169:6:tmc2209_3_button_task	18
+../Core/Src/bb3.c:286:6:tmc2209_icm20608_3_button_task	4
+../Core/Src/bb3.c:325:6:tmc2209_log_task	1
+../Core/Src/bb3.c:347:6:icm20608_log_task	1
+../Core/Src/bb3.c:363:6:bb3_task_control_loop	1
+../Core/Src/bb3.c:375:6:bb3_task_heartbeat	4
+../Core/Src/bb3.c:408:6:bb3_set_direction	1
+../Core/Src/bb3.c:412:6:bb3_setSpeedMode	1
+../Core/Src/bb3.c:416:6:bb3_set_acceration	2
+../Core/Src/bb3.c:425:6:bb3_set_speed	1

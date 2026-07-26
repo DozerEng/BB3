@@ -22,7 +22,7 @@
 #include "usbd_cdc_if.h"
 
 /* USER CODE BEGIN INCLUDE */
-
+#include "circularBuffer.h"
 
 
 /* USER CODE END INCLUDE */
@@ -52,7 +52,8 @@
 
 /* USER CODE BEGIN PRIVATE_TYPES */
 
-uint8_t usbRxBuffer[USB_RX_BUFFER_SIZE];
+
+//uint8_t usbRxBuffer[USB_RX_BUFFER_SIZE];
 
 /* USER CODE END PRIVATE_TYPES */
 
@@ -98,6 +99,12 @@ uint8_t UserRxBufferFS[APP_RX_DATA_SIZE];
 uint8_t UserTxBufferFS[APP_TX_DATA_SIZE];
 
 /* USER CODE BEGIN PRIVATE_VARIABLES */
+USBD_CDC_LineCodingTypeDef LineCoding = {
+		250000, 	// Baud Rate
+		0x00,		// stop bits - 1
+		0x00,		// parity - none
+		0x08		// number of bits 8
+};
 
 /* USER CODE END PRIVATE_VARIABLES */
 
@@ -132,6 +139,7 @@ static int8_t CDC_Receive_FS(uint8_t* pbuf, uint32_t *Len);
 static int8_t CDC_TransmitCplt_FS(uint8_t *pbuf, uint32_t *Len, uint8_t epnum);
 
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_DECLARATION */
+extern void USB_RXCallback(uint8_t* Buf, uint32_t *Len);
 
 /* USER CODE END PRIVATE_FUNCTIONS_DECLARATION */
 
@@ -224,12 +232,21 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
   /* 6      | bDataBits  |   1   | Number Data bits (5, 6, 7, 8 or 16).          */
   /*******************************************************************************/
     case CDC_SET_LINE_CODING:
-
-    break;
+    	LineCoding.bitrate = (uint32_t) (pbuf[0] | (pbuf[1] << 8) | (pbuf[2] << 16) | (pbuf[3] << 24));
+    	LineCoding.format = pbuf[4];
+    	LineCoding.paritytype = pbuf[5];
+    	LineCoding.datatype = pbuf[6];
+    	break;
 
     case CDC_GET_LINE_CODING:
-
-    break;
+    	pbuf[0] = (uint8_t) (LineCoding.bitrate);
+    	pbuf[1] = (uint8_t) (LineCoding.bitrate >> 8);
+    	pbuf[2] = (uint8_t) (LineCoding.bitrate >> 16);
+    	pbuf[3] = (uint8_t) (LineCoding.bitrate >> 24);
+    	pbuf[4] = LineCoding.format;
+    	pbuf[5] = LineCoding.paritytype;
+    	pbuf[6] = LineCoding.datatype;
+    	break;
 
     case CDC_SET_CONTROL_LINE_STATE:
 
@@ -265,13 +282,15 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
 static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 {
   /* USER CODE BEGIN 6 */
+  circularBuffer_write(&usbRxBuffer, Buf, *Len);
+
   USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
   USBD_CDC_ReceivePacket(&hUsbDeviceFS);
 
-  size_t length = (size_t) *Len;
-  memset(usbRxBuffer, '\0', USB_RX_BUFFER_SIZE); // Clear buffer before setting
-  memcpy(usbRxBuffer, Buf, length);
-  memset(Buf, '\0', length); // Clear Buf for next read
+//  size_t length = (size_t) *Len;
+//  memset(usbRxBuffer, '\0', USB_RX_BUFFER_SIZE); // Clear buffer before setting
+//  memcpy(usbRxBuffer, Buf, length);
+//  memset(Buf, '\0', length); // Clear Buf for next read
 
 //CDC_Transmit_FS(Buf,*Len); // Received characters are echoed to the terminal
 
@@ -330,47 +349,52 @@ static int8_t CDC_TransmitCplt_FS(uint8_t *Buf, uint32_t *Len, uint8_t epnum)
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_IMPLEMENTATION */
 
 
-uint8_t* CDC_Get_Buffer(void) {
+
+/*
+ * The following functions were created for the eezy bot arm project,
+ * they may have been replaced, delete with caution, keep for reference.
+ */
+//uint8_t* CDC_Get_Buffer(void) {
 
 	// Set a new buffer equal to usbRxBuffer
-	static uint8_t externalBuffer[USB_RX_BUFFER_SIZE];
-	memset(externalBuffer, '\0', USB_RX_BUFFER_SIZE);
-	memcpy(externalBuffer, usbRxBuffer, USB_RX_BUFFER_SIZE);
-	// Clear usbRxBuffer
-	memset(usbRxBuffer, '\0', USB_RX_BUFFER_SIZE);
-	// Return new buffer
-	return externalBuffer;
-}
-
-uint8_t CDC_Get_Char(void) {
-	// Clear usbRxBuffer
-	memset(usbRxBuffer, '\0', USB_RX_BUFFER_SIZE);
-	// Wait until usbRxBuffer is not empty
-	while(usbRxBuffer[0] == '\0');
-	uint8_t returnValue = usbRxBuffer[0];
-	// Shift any remaining characters in usbRxBuffer using FIFO
-	uint8_t i = 1;
-	while(usbRxBuffer[i] != '\0') {
-		usbRxBuffer[i - 1] = usbRxBuffer[i];
-		i++;
-	}
-	// Remove the last element
-	usbRxBuffer[i - 1] = '\0';
-	return returnValue;
-}
-
-void CDC_Echo_Char(void) {
-	  uint8_t buffer[3];
-	  buffer[0] = CDC_Get_Char();
-	  // Check if enter has been pressed, and if so, add a new line to the carriage return
-	  // May fail if length is greater than 1, would need to check all characters for a \r
-	  if(buffer[0] == (uint8_t)'\r') {
-	    char *newLine = "\n\r";
-	    CDC_Transmit_FS((uint8_t*)newLine, 2);
-	  } else {
-	    CDC_Transmit_FS(buffer, 1);
-	  }
-}
+//	static uint8_t externalBuffer[USB_RX_BUFFER_SIZE];
+//	memset(externalBuffer, '\0', USB_RX_BUFFER_SIZE);
+//	memcpy(externalBuffer, usbRxBuffer, USB_RX_BUFFER_SIZE);
+//	// Clear usbRxBuffer
+//	memset(usbRxBuffer, '\0', USB_RX_BUFFER_SIZE);
+//	// Return new buffer
+//	return externalBuffer;
+//}
+//
+//uint8_t CDC_Get_Char(void) {
+//	// Clear usbRxBuffer
+//	memset(usbRxBuffer, '\0', USB_RX_BUFFER_SIZE);
+//	// Wait until usbRxBuffer is not empty
+//	while(usbRxBuffer[0] == '\0');
+//	uint8_t returnValue = usbRxBuffer[0];
+//	// Shift any remaining characters in usbRxBuffer using FIFO
+//	uint8_t i = 1;
+//	while(usbRxBuffer[i] != '\0') {
+//		usbRxBuffer[i - 1] = usbRxBuffer[i];
+//		i++;
+//	}
+//	// Remove the last element
+//	usbRxBuffer[i - 1] = '\0';
+//	return returnValue;
+//}
+//
+//void CDC_Echo_Char(void) {
+//	  uint8_t buffer[3];
+//	  buffer[0] = CDC_Get_Char();
+//	  // Check if enter has been pressed, and if so, add a new line to the carriage return
+//	  // May fail if length is greater than 1, would need to check all characters for a \r
+//	  if(buffer[0] == (uint8_t)'\r') {
+//	    char *newLine = "\n\r";
+//	    CDC_Transmit_FS((uint8_t*)newLine, 2);
+//	  } else {
+//	    CDC_Transmit_FS(buffer, 1);
+//	  }
+//}
 
 
 

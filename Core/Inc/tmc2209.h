@@ -184,6 +184,7 @@
 #define TMC2209_VACTUAL_ADDR		0x22	// 0: Respond to step input, else use VACTUAL for speed control
 #define TMC2209_VACTUAL				0b00000001111111111111111111111111	// +/- (2^23)-1 [usteps/t]
 //#define TMC2209_VACTUAL				0x01FFFFFF
+// vactual in [µsteps / t]
 #define TMC2209_VACTUAL_MAX_P		16777215 // in decimal, since VACTUAL is signed
 #define TMC2209_VACTUAL_ZERO		0
 #define TMC2209_VACTUAL_MAX_N		0
@@ -275,8 +276,8 @@
 
 #define TMC2209_CHOPCONF_TBL			0b00000000000000011000000000000000	// Blank time, in clock cycles
 #define TMC2209_CHOPCONF_TBL_16			0b00000000000000000000000000000000	// 16 clock pulses
-#define TMC2209_CHOPCONF_TBL_24			0b00000000000000011000000000000000	// 24 clock pulses
-#define TMC2209_CHOPCONF_TBL_32			0b00000000000000011000000000000000	// 32 clock pulses
+#define TMC2209_CHOPCONF_TBL_24			0b00000000000000001000000000000000	// 24 clock pulses
+#define TMC2209_CHOPCONF_TBL_32			0b00000000000000010000000000000000	// 32 clock pulses
 #define TMC2209_CHOPCONF_TBL_40			0b00000000000000011000000000000000	// 40 clock pulses
 
 #define TMC2209_CHOPCONF_HEND			0b00000000000000000000011110000000	// Hysteresis low value
@@ -401,8 +402,7 @@
 typedef enum {
 	TMC2209_FULL_GPIO_CONTROL,			// STEP, DIR, MS1, MS2, etc...
 	TMC2209_VELOCITY_CONTROL,			// Velocity programming via UART
-	TMC2209_UART_STEP_DIR_CONTROL,		// UART + STEP, DIR
-	TMC2209_FULL_UART_STEPPING_CONTROL 	// Stepping via UART commands
+	TMC2209_UART_STEP_DIR_CONTROL		// UART + STEP, DIR
 } tmc2209_mode_t;
 
 typedef enum {
@@ -552,7 +552,7 @@ void tmc2209_get_TSTEP(tmc2209_t *tmc);
 
 void tmc2209_set_TPWMTHRS(tmc2209_t *tmc);
 
-void tmc2209_set_VACTUAL(tmc2209_t *tmc);
+void tmc2209_set_VACTUAL(tmc2209_t *tmc, int32_t vactual);
 
 // CoolStep and StallGuard control registers
 void tmc2209_set_TCOOLTHRS(tmc2209_t *tmc);
@@ -601,8 +601,8 @@ void tmc2209_step(tmc2209_t *tmc);
 void tmc2209_step_count(tmc2209_t *tmc, uint16_t count);
 
 // UART
-void tmc2209_set_speed(tmc2209_t *tmc, uint32_t speed);
-void tmc2209_set_acceleration(tmc2209_t *tmc, uint32_t acceleartion);
+void tmc2209_set_speed(tmc2209_t *tmc, int32_t speed);
+void tmc2209_set_acceleration(tmc2209_t *tmc, int32_t acceleartion);
 void tmc2209_on(tmc2209_t *tmc);
 void tmc2209_off(tmc2209_t *tmc);
 

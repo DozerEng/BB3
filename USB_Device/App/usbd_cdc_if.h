@@ -32,6 +32,7 @@
 
 /* USER CODE BEGIN INCLUDE */
 #include "string.h"
+#include "circularBuffer.h"
 /* USER CODE END INCLUDE */
 
 /** @addtogroup STM32_USB_OTG_DEVICE_LIBRARY
@@ -95,7 +96,11 @@ extern USBD_CDC_ItfTypeDef USBD_Interface_fops_FS;
 
 /* USER CODE BEGIN EXPORTED_VARIABLES */
 
-#define USB_RX_BUFFER_SIZE 64 // uint8_t elements
+
+extern CircularBuffer_t usbRxBuffer;
+
+
+//#define USB_RX_BUFFER_SIZE 64 // uint8_t elements
 
 /* USER CODE END EXPORTED_VARIABLES */
 

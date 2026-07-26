@@ -59,6 +59,9 @@ icm20608_t icm20608_new (
  * Functions
  */
 
+void icm20608_read(icm20608_t icm);
+void icm20608_write(icm20608_t icm);
+
 
 
 

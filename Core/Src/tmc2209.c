@@ -65,7 +65,7 @@ tmc2209_t tmc2209_new(
 	// General registers
 	newMotor.gconf =	TMC2209_internal_rsense |
 						TMC2209_I_scale_analog | 	// 0: Internal reference 1: From VREF
-//						TMC2209_multistep_filt |		// Filtering > 750Hz
+						TMC2209_multistep_filt |	// Filtering > 750Hz
 //						TMC2209_en_SpreadCycle | 	// 0: StealthChop 1: SpreadCycle
 						TMC2209_index_step; 		// INDEX output shows pulse each step
 
@@ -81,19 +81,18 @@ tmc2209_t tmc2209_new(
 							TMC2209_CHOPCONF_intpol | 	// Interpolation to 256 micro-steps
 //							TMC2209_CHOPCONF_dedge	|	// Step on rising and falling edges
 							TMC2209_CHOPCONF_TBL_24 |	// blank_time
-							TMC2209_CHOPCONF_vsense |	// 0: lowsense resistor voltage 1: high sense resistor voltage
+//							TMC2209_CHOPCONF_vsense |	// 0: lowsense resistor voltage 1: high sense resistor voltage
 							TMC2209_CHOPCONF_HEND_n1 |	// Hysteresis end
 							TMC2209_CHOPCONF_HSTRT_2 |	// Hysteresis_start
 							TMC2209_CHOPCONF_TOFF_10;	// Off time
 
 	tmc2209_set_CHOPCONF(&newMotor);
 
-
 	//	st.rms_current(mA, hold_multiplier);
 
 	// Currents
 	uint32_t newHoldCurrent = 0; // 0: Free wheel/passive breaking
-	uint32_t newRunCurrent = 16; // 0=1/32 … 31=32/32 ratio of max current
+	uint32_t newRunCurrent = 28; // 0=1/32 … 31=32/32 ratio of max current
 	uint32_t newHoldDelay = 0; // 0: instant power down
 	newMotor.ihold_irun =	newHoldCurrent |
 							(newRunCurrent << 8) |
@@ -101,7 +100,7 @@ tmc2209_t tmc2209_new(
 	tmc2209_set_IHOLD_IRUN(&newMotor);
 
 	// TPOWERDOWN
-	newMotor.tpowerdown = 128;	// ~2s until driver lowers to hold current
+	newMotor.tpowerdown = 32;	// 128 is ~2s until driver lowers to hold current
 	tmc2209_set_TPOWERDOWN(&newMotor);
 
 	// Values mostly taken from the Marlin default
@@ -116,7 +115,11 @@ tmc2209_t tmc2209_new(
 	tmc2209_set_PWMCONF(&newMotor);
 
 
-	newMotor.tpwmthrs = 0x00000000;
+	// Set Stealthchop / Spreadcycle velocity boundary
+	newMotor.tpwmthrs = 0x00000068; // with runCurrent = 15
+//	newMotor.tpwmthrs = 0x0000FFFF; // no stealthchop
+//	newMotor.tpwmthrs = 0x00000000;
+
 	tmc2209_set_TPWMTHRS(&newMotor);
 
 	tmc2209_set_mode(&newMotor);
@@ -154,7 +157,7 @@ uint32_t tmc2209_read(tmc2209_t *tmc, tmc2209_read_request_t readDatagram) {
 	reqMsg[1] = readDatagram.slaveAddress;
 	reqMsg[2] = readDatagram.registerAddress | TMC2209_RW_READ;
 	reqMsg[3] = 0;
-	tmc2209_calculateCRC(reqMsg, TMC2209_READ_REQUEST_DATAGRAM_LENGTH);
+	tmc2209_calculate_CRC(reqMsg, TMC2209_READ_REQUEST_DATAGRAM_LENGTH);
 
 	uint8_t resMsg[TMC2209_READ_RESPONSE_DATAGRAM_LENGTH];
 	memset(resMsg, 0, TMC2209_READ_RESPONSE_DATAGRAM_LENGTH);
@@ -351,16 +354,17 @@ void tmc2209_set_TPWMTHRS(tmc2209_t *tmc){
 	tmc2209_write_t msg = {
 		.slaveAddress = tmc->uartAddr,
 		.registerAddress = TMC2209_TPWMTHRS_ADDR,
-		.data = tmc->tpwmthrs
+		.data = tmc->tpwmthrs & TMC2209_TPWMTHRS
   	};
 	tmc2209_write(tmc, msg);
 }
 
 /**
  *	@function tmc2209_
- *	@brief
+ *	@brief Define VACTUAL speed in [µsteps / t]
+ *
  */
-void tmc2209_set_VACTUAL(tmc2209_t *tmc){
+void tmc2209_set_VACTUAL(tmc2209_t *tmc, int32_t vactual){
 	// Max sure speed isn't above the maximum allowable
 	if(tmc->vactual >= TMC2209_VACTUAL_MAX_P) {
 		tmc->vactual = TMC2209_VACTUAL_MAX_P;
@@ -557,18 +561,12 @@ void tmc2209_set_mode(tmc2209_t *tmc) {
 
 		// Set vsense control related variables
 		tmc->vactual_MAX = TMC2209_VACTUAL_MAX_P;
-		tmc->acceleration = 1000;
-		tmc->vactual = 0x00000000;
-		tmc2209_set_VACTUAL(tmc);
+		tmc2209_set_acceleration(tmc, 1000);
+//		tmc->acceleration = 1000;
+//		tmc->vactual = 0x00000000;
+		tmc2209_set_VACTUAL(tmc, 0x00000000);
 
 	} else if (tmc->mode == TMC2209_UART_STEP_DIR_CONTROL) {
-		// Ensure UART is set up correctly
-		tmc->gconf |= TMC2209_pdn_disable | TMC2209_mstep_reg_select;
-		tmc2209_set_GCONF(tmc);
-
-		//ToDo: Is anything else required here?
-
-	} else if (tmc->mode == TMC2209_FULL_UART_STEPPING_CONTROL) {
 		// Ensure UART is set up correctly
 		tmc->gconf |= TMC2209_pdn_disable | TMC2209_mstep_reg_select;
 		tmc2209_set_GCONF(tmc);
@@ -637,14 +635,14 @@ void tmc2209_step_count(tmc2209_t *tmc, uint16_t count) {
 /**
  *
  */
-void tmc2209_set_speed(tmc2209_t *tmc, uint32_t speed) {
+void tmc2209_set_speed(tmc2209_t *tmc, int32_t speed) {
 
 }
 
 /**
  *
  */
-void tmc2209_set_acceleration(tmc2209_t *tmc, uint32_t acceleration) {
+void tmc2209_set_acceleration(tmc2209_t *tmc, int32_t acceleration) {
 
 }
 

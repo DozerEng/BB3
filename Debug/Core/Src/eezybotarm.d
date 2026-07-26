@@ -45,7 +45,7 @@ Core/Src/eezybotarm.o: ../Core/Src/eezybotarm.c ../Core/Inc/eezybotarm.h \
  ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_core.h \
  ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_ioreq.h \
  ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_ctlreq.h \
- ../Core/Inc/servo.h ../Core/Inc/rgb.h
+ ../Core/Inc/circularBuffer.h ../Core/Inc/servo.h ../Core/Inc/rgb.h
 ../Core/Inc/eezybotarm.h:
 ../Drivers/STM32G4xx_HAL_Driver/Inc/stm32g4xx_hal.h:
 ../Core/Inc/stm32g4xx_hal_conf.h:
@@ -93,5 +93,6 @@ Core/Src/eezybotarm.o: ../Core/Src/eezybotarm.c ../Core/Inc/eezybotarm.h \
 ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_core.h:
 ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_ioreq.h:
 ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_ctlreq.h:
+../Core/Inc/circularBuffer.h:
 ../Core/Inc/servo.h:
 ../Core/Inc/rgb.h:

@@ -12,7 +12,9 @@
 
 
 
-
+/*
+ * Constructor
+ */
 
 
 icm20608_t icm20608_new (
@@ -27,10 +29,5 @@ icm20608_t icm20608_new (
 
 	return newIcm;
 }
-
-
-
-
-
 
 
