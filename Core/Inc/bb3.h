@@ -24,13 +24,14 @@
 #include "eezybotarm.h"
 #include "tmc2209.h"
 #include "icm20608.h"
+#include "controller.h"
 
 
 
 #define HEARTBEAT_TOP_LED_INTERVAL 	10		// Period in ms
 #define HEARTBEAT_BOT_LED_INTERVAL 	250 	// Period in ms
 
-#define TASK_RGB_TIMEOUT			1000	// in ms
+#define TASK_RGB_TIMEOUT			500	// in ms
 
 // Pick which interfaces for logging and/or data collection
 #define LOG_USB 	true
@@ -46,7 +47,7 @@ typedef struct
 
 	  rgb_t *rgbLeft, *rgbRight;
 	  rgb_t *rgbEventButton, *rgbEventProcess;
-	  button_t *pbTop, *pbMid, *pbBot;
+	  button_t *pbTop, *pbMid, *pbBot, *pbLimit;
 	  tmc2209_t *motorLeft, *motorRight;
 
 	  bool modeDebug;
@@ -54,9 +55,11 @@ typedef struct
 	  uint8_t direction;
 	  uint8_t speedMode;
 
-	  double setPoint;
-	  double speed;
-	  double acceleration;
+	  controller_t ctrl;
+
+//	  double setPoint;
+//	  double speed;
+//	  double acceleration;
 
 
 } bb3_t;
@@ -65,7 +68,7 @@ typedef struct
 bb3_t bb3_new(
 		  rgb_t *rgbLeft, rgb_t *rgbRight,
 		  rgb_t *rgbEventButton, rgb_t *rgbEventProcess,
-		  button_t *pbTop, button_t *pbMid, button_t *pbBot,
+		  button_t *pbTop, button_t *pbMid, button_t *pbBot, button_t *pbLimit,
 		  tmc2209_t *motorLeft, tmc2209_t *motorRight,
 		  bool modeDebug,
 		  uint8_t direction,
@@ -131,15 +134,16 @@ void bb3_set_direction(bb3_t *bb3, uint8_t direction);
  *  Velocity control
  */
 
-#define BB3_SPEED_RPM 	0
-#define BB3_SPEED_RADS	1	// rad/s
-#define BB3_SPEED_MMS	2 	// mm/s
+#define BB3_SPEED_MODE_RPM 		0
+#define BB3_SPEED_MODE_RADS		1	// rad/s
+#define BB3_SPEED_MODE_MMS		2 	// mm/s
 
 void bb3_set_speed_mode(bb3_t *bb3, uint8_t speedMode);
 
 void bb3_set_acceration(bb3_t *bb3, float acceleration);
 void bb3_set_speed(bb3_t *bb3,  int32_t speed);
 void bb3_set_max_speed(bb3_t *bb3, float maxSpeed);
+void bb3_update_speed(bb3_t *bb3);
 
 
 

@@ -218,6 +218,7 @@ void SystemClock_Config(void);
   * @brief  The application entry point.
   * @retval int
   */
+bb3_t bb3; // Make BB3 a global variable for use with STM32CubeMonitor
 int main(void)
 {
 
@@ -335,18 +336,23 @@ int main(void)
   /**
    *  Buttons
    */
-  button_t topPb = button_new(
+  button_t pbTop = button_new(
       TOP_PB_Pin,
       TOP_PB_GPIO_Port,
       0);
-  button_t midPb = button_new(
+  button_t pbMid = button_new(
 	MID_PB_Pin,
 	MID_PB_GPIO_Port,
 	0);
-  button_t botPb = button_new(
+  button_t pbBot = button_new(
     BOT_PB_Pin,
     BOT_PB_GPIO_Port,
     0);
+  button_t pbLimit = button_new(
+    LIMIT_SW_Pin,
+	LIMIT_SW_GPIO_Port,
+	0);
+
 
   /**
    * Stepper motor drivers
@@ -358,7 +364,7 @@ int main(void)
   /**
    * Stepper motor drivers
    */
-  tmc2209_t rightMotor = tmc2209_new(
+  tmc2209_t motorRight = tmc2209_new(
     TMC2209_VELOCITY_CONTROL,
 	TMC2209_INVERSE_MOTOR_DIR,
     &htim2,
@@ -368,7 +374,7 @@ int main(void)
 	&huart1,
 	TMC2209_ADDR_1);
 
-  tmc2209_t leftMotor = tmc2209_new(
+  tmc2209_t motorLeft = tmc2209_new(
 	TMC2209_VELOCITY_CONTROL,
 	TMC2209_STANDARD_MOTOR_DIR,
     &htim2,
@@ -378,14 +384,14 @@ int main(void)
     &huart1,
     TMC2209_ADDR_2);
 
- bb3_t bb3 = bb3_new(
+  bb3 = bb3_new(
 	  &rgb1, &rgb2,
 	  &rgb1, &rgb2, // event LED: button, process
-	  &topPb, &midPb, &botPb,
-	  &leftMotor, &rightMotor,
+	  &pbTop, &pbMid, &pbBot, &pbLimit,
+	  &motorLeft, &motorRight,
 	  true,
 	  BB3_DIRECTION_FORWARD,
-	  BB3_SPEED_RPM,
+	  BB3_SPEED_MODE_RPM,
 	  1.0 // acceleration
 	  );
 

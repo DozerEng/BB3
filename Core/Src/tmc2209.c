@@ -364,7 +364,7 @@ void tmc2209_set_TPWMTHRS(tmc2209_t *tmc){
  *	@brief Define VACTUAL speed in [µsteps / t]
  *
  */
-void tmc2209_set_VACTUAL(tmc2209_t *tmc, int32_t vactual){
+void tmc2209_set_VACTUAL(tmc2209_t *tmc){
 	// Max sure speed isn't above the maximum allowable
 	if(tmc->vactual >= TMC2209_VACTUAL_MAX_P) {
 		tmc->vactual = TMC2209_VACTUAL_MAX_P;
@@ -563,8 +563,8 @@ void tmc2209_set_mode(tmc2209_t *tmc) {
 		tmc->vactual_MAX = TMC2209_VACTUAL_MAX_P;
 		tmc2209_set_acceleration(tmc, 1000);
 //		tmc->acceleration = 1000;
-//		tmc->vactual = 0x00000000;
-		tmc2209_set_VACTUAL(tmc, 0x00000000);
+		tmc->vactual = 0x00000000;
+		tmc2209_set_VACTUAL(tmc);
 
 	} else if (tmc->mode == TMC2209_UART_STEP_DIR_CONTROL) {
 		// Ensure UART is set up correctly

@@ -34,13 +34,13 @@ typedef struct {
 	int32_t errorCurrentAbsolute;
 	int32_t errorPrevious;
 
-	int32_t stepCurrent;
-	int32_t stepPrevious;
+//	int32_t stepCurrent;
+//	int32_t stepPrevious;
 
 } controller_t;
 
 controller_t controller_new(int32_t setPoint);
 
-int32_t controller_step(controller_t *ctrl, int32_t input);
+void controller_step(controller_t *ctrl);
 
 #endif /* INC_CONTROLLER_H_ */

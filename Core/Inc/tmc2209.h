@@ -552,7 +552,7 @@ void tmc2209_get_TSTEP(tmc2209_t *tmc);
 
 void tmc2209_set_TPWMTHRS(tmc2209_t *tmc);
 
-void tmc2209_set_VACTUAL(tmc2209_t *tmc, int32_t vactual);
+void tmc2209_set_VACTUAL(tmc2209_t *tmc);
 
 // CoolStep and StallGuard control registers
 void tmc2209_set_TCOOLTHRS(tmc2209_t *tmc);

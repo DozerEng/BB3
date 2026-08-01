@@ -54,7 +54,7 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Core/Inc/servo.h ../Core/Inc/rgb.h ../Core/Inc/tmc2209.h \
  ../Core/Inc/icm20608.h ../Core/Inc/bb3.h ../Core/Inc/led.h \
  ../Core/Inc/button.h ../Core/Inc/eezybotarm.h ../Core/Inc/tmc2209.h \
- ../Core/Inc/icm20608.h
+ ../Core/Inc/icm20608.h ../Core/Inc/controller.h
 ../Core/Inc/main.h:
 ../Drivers/STM32G4xx_HAL_Driver/Inc/stm32g4xx_hal.h:
 ../Core/Inc/stm32g4xx_hal_conf.h:
@@ -127,3 +127,4 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Core/Inc/eezybotarm.h:
 ../Core/Inc/tmc2209.h:
 ../Core/Inc/icm20608.h:
+../Core/Inc/controller.h:

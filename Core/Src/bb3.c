@@ -11,7 +11,7 @@
 bb3_t bb3_new(
 		  rgb_t *rgbLeft, rgb_t *rgbRight,
 		  rgb_t *rgbEventButton, rgb_t *rgbEventProcess,
-		  button_t *pbTop, button_t *pbMid, button_t *pbBot,
+		  button_t *pbTop, button_t *pbMid, button_t *pbBot, button_t *pbLimit,
 		  tmc2209_t *motorLeft, tmc2209_t *motorRight,
 		  bool modeDebug,
 		  uint8_t direction,
@@ -28,6 +28,7 @@ bb3_t bb3_new(
 	newBb3.pbTop = pbTop;
 	newBb3.pbMid = pbMid;
 	newBb3.pbBot = pbBot;
+	newBb3.pbLimit = pbLimit;
 
 	// Motor Configuration
 	newBb3.motorLeft = motorLeft;
@@ -38,8 +39,10 @@ bb3_t bb3_new(
 
 	newBb3.direction = direction;
 	newBb3.speedMode = speedMode;
-	newBb3.speed = 0;
-	newBb3.acceleration = acceleration;
+//	newBb3.speed = 0;
+//	newBb3.setPoint = 0;
+//	newBb3.acceleration = acceleration;
+	newBb3.ctrl = controller_new(0);
 
 	return newBb3;
 }
@@ -123,10 +126,10 @@ void bb3_task_button(
 		if (bb3->pbTop->currentState == BUTTON_PRESSED) {
 			previousButtonPressedTick = currentTick;
 			// Forward increase speed
-			bb3_set_direction(bb3, BB3_DIRECTION_FORWARD);
-			bb3_set_speed(bb3, 10000);
+//			bb3_set_direction(bb3, BB3_DIRECTION_FORWARD);
+			bb3_set_speed(bb3, 50000);
 
-			// Toggle LEDs to signal change
+			// Set LEDs to signal change
 			rgb_set_green(bb3->rgbEventButton);
 
 		}
@@ -134,11 +137,11 @@ void bb3_task_button(
 		if (bb3->pbMid->currentState == BUTTON_PRESSED) {
 			previousButtonPressedTick = currentTick;
 			// Reverse increase speed
-			bb3_set_direction(bb3, BB3_DIRECTION_REVERSE);
-			bb3_set_speed(bb3, -10000);
+//			bb3_set_direction(bb3, BB3_DIRECTION_REVERSE);
+			bb3_set_speed(bb3, 0);
 
-			// Toggle LEDs to signal change
-			rgb_set_red(bb3->rgbEventButton);
+			// Set LEDs to signal change
+			rgb_set_turquoise(bb3->rgbEventButton);
 
 		}
 		button_read(bb3->pbBot);
@@ -146,12 +149,20 @@ void bb3_task_button(
 			previousButtonPressedTick = currentTick;
 			// BRAKE
 			bb3_set_direction(bb3, BB3_DIRECTION_BRAKING);
-			bb3_set_speed(bb3, 0);
+			bb3_set_speed(bb3, -50000);
 
-
-			// Toggle LEDs to signal change
+			// Set LEDs to signal change
 			rgb_set_blue(bb3->rgbEventButton);
 
+		}
+		button_read(bb3->pbLimit);
+		if(bb3->pbLimit->currentState == BUTTON_PRESSED) {
+			previousButtonPressedTick = currentTick;
+			// BRAKE
+			bb3_set_direction(bb3, BB3_DIRECTION_BRAKING);
+			bb3_set_speed(bb3, 0);
+			// Set LEDs to signal change
+			rgb_set_red(bb3->rgbEventButton);
 		}
 
 
@@ -196,9 +207,9 @@ void tmc2209_3_button_task(
 			previousButtonPressTick = currentTick;
 			// Velocity Control
 			tmc1->vactual += tmc1->acceleration ;
-			tmc2209_set_VACTUAL(tmc1, tmc1->vactual);
+			tmc2209_set_VACTUAL(tmc1);
 			tmc2->vactual += tmc1->acceleration ;
-			tmc2209_set_VACTUAL(tmc2, tmc2->vactual);
+			tmc2209_set_VACTUAL(tmc2);
 
 			// Toggle LEDs to signal change
 			if(rgb1->currentColor == RGB_OFF) {
@@ -217,11 +228,11 @@ void tmc2209_3_button_task(
 			// Velocity Control
 			if (tmc1->mode == TMC2209_VELOCITY_CONTROL) {
 				tmc1->vactual -= tmc1->acceleration ;
-				tmc2209_set_VACTUAL(tmc1, tmc1->vactual);
+				tmc2209_set_VACTUAL(tmc1);
 			}
 			if(tmc2->mode == TMC2209_VELOCITY_CONTROL) {
 				tmc2->vactual -= tmc2->acceleration ;
-				tmc2209_set_VACTUAL(tmc2, tmc2->vactual);
+				tmc2209_set_VACTUAL(tmc2);
 			}
 
 			// Toggle LEDs to signal change
@@ -250,7 +261,7 @@ void tmc2209_3_button_task(
 					tmc1->vactual += 5*tmc1->acceleration;
 				}
 			}
-			tmc2209_set_VACTUAL(tmc1, tmc1->vactual);
+			tmc2209_set_VACTUAL(tmc1);
 
 
 			// VACTUAL control
@@ -263,7 +274,7 @@ void tmc2209_3_button_task(
 					tmc2->vactual += 5*tmc2->acceleration;
 				}
 			}
-			tmc2209_set_VACTUAL(tmc2, tmc2->vactual);
+			tmc2209_set_VACTUAL(tmc2);
 
 			// Toggle LEDs to signal change
 			if(rgb1->currentColor == RGB_OFF) {
@@ -364,9 +375,9 @@ void bb3_task_control_loop(
 		uint32_t period,
 		bb3_t *bb3
 	 ) {
-	// ToDo; This
-	return;
 
+	// Update speed
+	bb3_update_speed(bb3);
 }
 
 /*
@@ -400,11 +411,9 @@ void bb3_task_heartbeat(
 
 }
 
-/*xfbcgnvhmbj
+/*
  * Helper Functions
  */
-
-
 void bb3_set_direction(bb3_t *bb3, uint8_t direction) {
 	bb3->direction = direction;
 }
@@ -414,24 +423,57 @@ void bb3_setSpeedMode(bb3_t *bb3, uint8_t speedMode) {
 }
 
 void bb3_set_acceration(bb3_t *bb3, float acceleration) {
-	if(bb3->speedMode == BB3_SPEED_RPM) {
+	// 1.8 degree steps, 200 steps per rotation
+	if(bb3->speedMode == BB3_SPEED_MODE_RPM) {
+		return;
 
-	} else if(bb3->speedMode == BB3_SPEED_RADS) {
+	} else if(bb3->speedMode == BB3_SPEED_MODE_RADS) {
 
-	} else if(bb3->speedMode == BB3_SPEED_MMS) {
+		return;
+	} else if(bb3->speedMode == BB3_SPEED_MODE_MMS) {
+		// Linear motion based on wheel radius * 2 * pi
+		return;
 
 	}
 }
 void bb3_set_speed(bb3_t *bb3,  int32_t speed) {
 	// ToDo: Figure out which direction you're set to, and set speed accordingly
 
-	// Velocity Control in [µsteps / t]
-	bb3->motorLeft->vactual = speed;
-	tmc2209_set_VACTUAL(bb3->motorLeft, speed);
-	bb3->motorRight->vactual = speed;
-	tmc2209_set_VACTUAL(bb3->motorRight, speed);
+	// Adjust vactual based on microstep setting
+	bb3->ctrl.setPoint = speed;
+
 
 
 }
 void bb3_set_max_speed(bb3_t *bb3, float maxSpeed);
+
+void bb3_update_speed(bb3_t *bb3) {
+
+
+//	 Velocity Control in [µsteps / t]
+	controller_step(&bb3->ctrl);
+
+
+	bb3->motorLeft->vactual = bb3->ctrl.outputCurrent;
+	tmc2209_set_VACTUAL(bb3->motorLeft);
+	bb3->motorRight->vactual = bb3->ctrl.outputCurrent;
+	tmc2209_set_VACTUAL(bb3->motorRight);
+
+
+	if((bb3->ctrl.errorCurrent > 0 && bb3->ctrl.outputCurrent < 0) || (bb3->ctrl.errorCurrent < 0 && bb3->ctrl.outputCurrent > 0) ) {
+		// If braking, set LED to red
+		rgb_set_red(bb3->rgbEventProcess);
+	} else if(bb3->ctrl.errorCurrent < 0) {
+		// If accelerating in reverse, set LED to blue
+		rgb_set_blue(bb3->rgbEventProcess);
+	} else if (bb3->ctrl.errorCurrent > 0 ){
+		// If accelerating forward, set LED to green
+		rgb_set_green(bb3->rgbEventProcess);
+	} else {
+		// If at speed, turn of LED
+		rgb_set_off(bb3->rgbEventProcess);
+	}
+
+
+}
 

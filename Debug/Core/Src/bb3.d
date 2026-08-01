@@ -48,7 +48,7 @@ Core/Src/bb3.o: ../Core/Src/bb3.c ../Core/Inc/bb3.h \
  ../Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_ctlreq.h \
  ../Core/Inc/circularBuffer.h ../Core/Inc/led.h ../Core/Inc/rgb.h \
  ../Core/Inc/button.h ../Core/Inc/servo.h ../Core/Inc/eezybotarm.h \
- ../Core/Inc/tmc2209.h ../Core/Inc/icm20608.h
+ ../Core/Inc/tmc2209.h ../Core/Inc/icm20608.h ../Core/Inc/controller.h
 ../Core/Inc/bb3.h:
 ../USB_Device/App/usb_device.h:
 ../Drivers/CMSIS/Device/ST/STM32G4xx/Include/stm32g4xx.h:
@@ -106,3 +106,4 @@ Core/Src/bb3.o: ../Core/Src/bb3.c ../Core/Inc/bb3.h \
 ../Core/Inc/eezybotarm.h:
 ../Core/Inc/tmc2209.h:
 ../Core/Inc/icm20608.h:
+../Core/Inc/controller.h:
