@@ -11,12 +11,13 @@
 
 #include "stm32g4xx_hal.h"
 #include "stdint.h"
+#include "float.h"
 //#include "stdio.h"
 //#include "ctype.h"
 //#include "string.h"
 
-#include "stdbool.h"
-
+//#include "stdbool.h"
+#include "controller.h"
 
 
 /**
@@ -24,32 +25,23 @@
  */
 
 typedef struct {
+	controller_base_t base;
+
 	float kp;
 	float ki;
 	float kd;
-	float dt;
 
-	float windupMax;
-	float windupMin;
-
-	float outputMax;
-	float outputMin;
-
-	float previousInput;
-	float previousOutput;
 	float previousError;
 	float integrator;
 
-    /**
-     * Derivative low-pass filter time constant
-     * The time constant of the filter (-3dB frequency in Hz, fc = 1 / (2*pi*tau)).
-     * A larger value of tau means the signal is filtered more heavily.
-     * As tau approaches zero, the differentiator approaches a 'pure differentiator' with no filtering.
-     */
-    float tau;
+	float windupMax;
+	float outputMax;
 
-} PID;
+} pid_t;
 
+pid_t pid_new(float kp, float ki, float kd);
+
+int32_t pid_step(controller_base_t *self, int32_t setPoint, int32_t measurement);
 
 
 #endif /* INC_PID_H_ */

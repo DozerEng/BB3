@@ -16,7 +16,9 @@ bb3_t bb3_new(
 		  bool modeDebug,
 		  uint8_t direction,
 		  uint8_t speedMode,
-		  double acceleration
+		  int32_t setPoint,
+		  int32_t speed,
+		  controller_base_t *controller
 		  ) {
 	bb3_t newBb3;
 
@@ -39,10 +41,10 @@ bb3_t bb3_new(
 
 	newBb3.direction = direction;
 	newBb3.speedMode = speedMode;
-//	newBb3.speed = 0;
-//	newBb3.setPoint = 0;
+	newBb3.speed = 0;
+	newBb3.setPoint = 0;
 //	newBb3.acceleration = acceleration;
-	newBb3.ctrl = controller_new(0);
+	newBb3.controller = controller;
 
 	return newBb3;
 }
@@ -127,7 +129,7 @@ void bb3_task_button(
 			previousButtonPressedTick = currentTick;
 			// Forward increase speed
 //			bb3_set_direction(bb3, BB3_DIRECTION_FORWARD);
-			bb3_set_speed(bb3, 50000);
+			bb3_set_speed(bb3, 25000);
 
 			// Set LEDs to signal change
 			rgb_set_green(bb3->rgbEventButton);
@@ -149,7 +151,7 @@ void bb3_task_button(
 			previousButtonPressedTick = currentTick;
 			// BRAKE
 			bb3_set_direction(bb3, BB3_DIRECTION_BRAKING);
-			bb3_set_speed(bb3, -50000);
+			bb3_set_speed(bb3, -25000);
 
 			// Set LEDs to signal change
 			rgb_set_blue(bb3->rgbEventButton);
@@ -375,9 +377,30 @@ void bb3_task_control_loop(
 		uint32_t period,
 		bb3_t *bb3
 	 ) {
+	/*
+	 *  Initialize Event Registers
+	 */
+	static uint32_t previousTick = 0;
+	static uint32_t previousEventTick = 0;
 
-	// Update speed
-	bb3_update_speed(bb3);
+	uint32_t currentTick = HAL_GetTick();
+	if(previousTick == 0){
+		// If zero, it is the first iteration
+		previousTick = currentTick;
+	}
+
+	/*
+	 * Event
+	 */
+	if(currentTick > (previousEventTick + period)) {
+		// Reset previous event tracker
+		previousEventTick = currentTick;
+		// Update step
+//		controller_step(&bb3->ctrl);
+
+		// Update speed
+		bb3_update_speed(bb3);
+	}
 }
 
 /*
@@ -436,11 +459,12 @@ void bb3_set_acceration(bb3_t *bb3, float acceleration) {
 
 	}
 }
+
 void bb3_set_speed(bb3_t *bb3,  int32_t speed) {
 	// ToDo: Figure out which direction you're set to, and set speed accordingly
 
 	// Adjust vactual based on microstep setting
-	bb3->ctrl.setPoint = speed;
+	bb3->setPoint = speed;
 
 
 
@@ -450,23 +474,22 @@ void bb3_set_max_speed(bb3_t *bb3, float maxSpeed);
 void bb3_update_speed(bb3_t *bb3) {
 
 
-//	 Velocity Control in [µsteps / t]
-	controller_step(&bb3->ctrl);
+	// Velocity Control in [µsteps / t]
+	bb3->speed = bb3->controller->step(bb3->controller, bb3->setPoint, bb3->speed);
 
-
-	bb3->motorLeft->vactual = bb3->ctrl.outputCurrent;
+	bb3->motorLeft->vactual = bb3->speed; //bb3->ctrl.outputCurrent;
 	tmc2209_set_VACTUAL(bb3->motorLeft);
-	bb3->motorRight->vactual = bb3->ctrl.outputCurrent;
+	bb3->motorRight->vactual = bb3->speed; //bb3->ctrl.outputCurrent;
 	tmc2209_set_VACTUAL(bb3->motorRight);
 
 
-	if((bb3->ctrl.errorCurrent > 0 && bb3->ctrl.outputCurrent < 0) || (bb3->ctrl.errorCurrent < 0 && bb3->ctrl.outputCurrent > 0) ) {
+	if((bb3->setPoint >= 0 && bb3->speed < 0) || (bb3->setPoint <= 0 && bb3->speed > 0) ) {
 		// If braking, set LED to red
 		rgb_set_red(bb3->rgbEventProcess);
-	} else if(bb3->ctrl.errorCurrent < 0) {
+	} else if(bb3->setPoint < 0) {
 		// If accelerating in reverse, set LED to blue
 		rgb_set_blue(bb3->rgbEventProcess);
-	} else if (bb3->ctrl.errorCurrent > 0 ){
+	} else if (bb3->setPoint > 0 ){
 		// If accelerating forward, set LED to green
 		rgb_set_green(bb3->rgbEventProcess);
 	} else {

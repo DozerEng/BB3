@@ -55,10 +55,10 @@ typedef struct
 	  uint8_t direction;
 	  uint8_t speedMode;
 
-	  controller_t ctrl;
+	  controller_base_t *controller;
 
-//	  double setPoint;
-//	  double speed;
+	  int32_t setPoint;
+	  int32_t speed;
 //	  double acceleration;
 
 
@@ -73,7 +73,9 @@ bb3_t bb3_new(
 		  bool modeDebug,
 		  uint8_t direction,
 		  uint8_t speedMode,
-		  double acceleration
+		  int32_t setPoint,
+		  int32_t speed,
+		  controller_base_t *controller
 		  );
 
 

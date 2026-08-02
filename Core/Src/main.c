@@ -42,6 +42,8 @@
 #include "icm20608.h"
 #include "bb3.h"
 #include "circularBuffer.h"
+#include "controller.h"
+#include "pid.h"
 
 //#include "math.h"
 
@@ -384,6 +386,9 @@ int main(void)
     &huart1,
     TMC2209_ADDR_2);
 
+  controller_t linear_controller = controller_new(0, 5);
+  pid_t pid = pid_new(1, 0, 0);
+
   bb3 = bb3_new(
 	  &rgb1, &rgb2,
 	  &rgb1, &rgb2, // event LED: button, process
@@ -392,7 +397,9 @@ int main(void)
 	  true,
 	  BB3_DIRECTION_FORWARD,
 	  BB3_SPEED_MODE_RPM,
-	  1.0 // acceleration
+	  0,
+	  0,
+	  &linear_controller.base // Can be any controller_base_t
 	  );
 
  //  eezybotarm_t robotArm = eezybotarm_new(&servo6, &servo3, &servo4, &servo5, &rgb1, &rgb2);

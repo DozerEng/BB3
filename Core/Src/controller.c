@@ -7,11 +7,15 @@
 
 #include "controller.h"
 
-controller_t controller_new(int32_t setPoint) {
+controller_t controller_new(int32_t setPoint, int32_t acceleration) {
 	controller_t newController;
+
 	newController.setPoint = setPoint;
-	newController.acceleration = 5;
-	newController.accelerationMax = 100;
+	newController.acceleration = acceleration;
+
+	newController.base.step = controller_step;
+
+	newController.accelerationMax = 100000;
 	newController.inputCurrent = 0;
 	newController.inputPrevious = 0;
 	newController.outputCurrent = 0;
@@ -19,13 +23,13 @@ controller_t controller_new(int32_t setPoint) {
 	newController.errorCurrent = 0;
 	newController.errorCurrentAbsolute = 0;
 	newController.errorPrevious = 0;
-//	newController.stepCurrent = 0;
-//	newController.stepPrevious = 0;
 
 	return newController;
 }
 
-void controller_step(controller_t *ctrl) {
+int32_t controller_step(controller_base_t *self, int32_t setPoint, int32_t measurement) {
+	controller_t *ctrl = (controller_t *)self;
+
 	// Get timing information
 	static uint32_t currentTick = 0;
 	currentTick = HAL_GetTick();
@@ -43,31 +47,24 @@ void controller_step(controller_t *ctrl) {
 	ctrl->outputPrevious = ctrl->outputCurrent;
 	ctrl->errorPrevious = ctrl->errorCurrent;
 	// Calculate error
-	ctrl->errorCurrent =  ctrl->setPoint - ctrl->outputPrevious;
+	ctrl->errorCurrent =  setPoint - ctrl->outputPrevious;
 	// Check if we are already at desired set point
 	if(ctrl->errorCurrent == 0) {
-		return;
+		return ctrl->outputPrevious;
 	}
 
-
-//	// Get absolute error
-//	if(ctrl->errorCurrent < 0) {
-//		ctrl->errorCurrentAbsolute = -1 * ctrl->errorCurrent;
-//
-//	} else {
-//		ctrl->errorCurrentAbsolute = ctrl->errorCurrent;
-//	}
-	// Compare error to max acceleration
+	// Compare error to max acceleration change for this time interval
 	int32_t maxVelocityChange = ctrl->acceleration * deltaTick;
 	if (ctrl->errorCurrent > maxVelocityChange) {
 		// Error is greater than can be achieved with the maximum acceleration over this time step
 		ctrl->outputCurrent = ctrl->outputPrevious + maxVelocityChange;
 	} else if (ctrl->errorCurrent < (-1*maxVelocityChange)) {
+		// Error is greater than can be achieved with the maximum acceleration over this time step
 		ctrl->outputCurrent = ctrl->outputPrevious - maxVelocityChange;
 	} else {
 		// Error is not limited by acceleration, set to desired speed
 		ctrl->outputCurrent = ctrl->outputPrevious + ctrl->errorCurrent;
 	}
-
+	return ctrl->outputCurrent;
 
 }

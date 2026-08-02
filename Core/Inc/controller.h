@@ -12,13 +12,26 @@
 
 #include "stm32g4xx_hal.h"
 #include "stdint.h"
-//#include "stdio.h"
-//#include "ctype.h"
-//#include "string.h"
 
-//#include "stdbool.h"
 
+/*
+ * Polymorphic controller for use with linear, PID, LQR, etc...
+ */
+typedef struct controller_base controller_base_t;
+
+struct controller_base
+{
+    int32_t (*step)(controller_base_t *self,
+            		int32_t setPoint,
+					int32_t measurement);
+};
+
+/*
+ * Basic linear controller
+ */
 typedef struct {
+	controller_base_t base;
+
 	int32_t setPoint;
 
 	int32_t acceleration;
@@ -34,13 +47,11 @@ typedef struct {
 	int32_t errorCurrentAbsolute;
 	int32_t errorPrevious;
 
-//	int32_t stepCurrent;
-//	int32_t stepPrevious;
 
 } controller_t;
 
-controller_t controller_new(int32_t setPoint);
+controller_t controller_new(int32_t setPoint, int32_t acceleration);
 
-void controller_step(controller_t *ctrl);
+int32_t controller_step(controller_base_t *self, int32_t setPoint, int32_t measurement);
 
 #endif /* INC_CONTROLLER_H_ */
